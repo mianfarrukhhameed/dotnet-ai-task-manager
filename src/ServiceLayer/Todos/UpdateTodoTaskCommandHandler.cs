@@ -76,8 +76,7 @@ public class UpdateTodoTaskCommandHandler : IRequestHandler<UpdateTodoTaskComman
             _logger.LogInformation("Queued background embedding refresh for todo {TodoExternalId}", todoTask.ExternalId);
         }
 
-        todoTask = await _todoTaskRepository.Get(command.ExternalId, cancellationToken);
-
+        // Map from in-memory tracked entity — no post-mutate re-query (Phase 1 D4).
         return new UpdateTodoTaskCommandResult
         {
             Payload = _mapper.Map<TodoTaskDto>(todoTask)

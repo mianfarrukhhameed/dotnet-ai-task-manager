@@ -53,11 +53,11 @@ public class CreateSprintCommandHandler : IRequestHandler<CreateSprintCommand, C
         }
 
         await _sprintRepository.Create(sprint, cancellationToken);
-        sprint = await _sprintRepository.Get(sprint.ExternalId, cancellationToken);
 
+        // Map from in-memory graph (todos already loaded for authz) — no post-create re-query.
         return new CreateSprintCommandResult
         {
-            Payload = MapSprint(sprint)
+            Payload = MapSprint(sprint, todos)
         };
     }
 
@@ -80,11 +80,15 @@ public class CreateSprintCommandHandler : IRequestHandler<CreateSprintCommand, C
         return todos;
     }
 
-    internal static SprintDto MapSprint(Sprint sprint)
+    internal static SprintDto MapSprint(Sprint sprint, IReadOnlyList<TodoTask>? todos = null)
     {
-        var tasks = sprint.SprintTodos
-            .Where(st => st.TodoTask is not null)
-            .Select(st => st.TodoTask!)
+        var taskEntities = todos
+            ?? sprint.SprintTodos
+                .Where(st => st.TodoTask is not null)
+                .Select(st => st.TodoTask!)
+                .ToList();
+
+        var tasks = taskEntities
             .Select(t => new SprintTaskSummaryDto
             {
                 ExternalId = t.ExternalId,

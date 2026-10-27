@@ -14,9 +14,9 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public sealed class AiBatchJobRepository : IAiBatchJobRepository
 {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _context;
 
-    public AiBatchJobRepository(EfContext context)
+    public AiBatchJobRepository(WriteEfContext context)
     {
         _context = context;
     }

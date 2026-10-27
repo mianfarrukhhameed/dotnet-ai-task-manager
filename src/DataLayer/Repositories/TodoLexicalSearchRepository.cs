@@ -14,9 +14,9 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public sealed class TodoLexicalSearchRepository : ITodoLexicalSearchRepository
 {
-    private readonly EfContext _context;
+    private readonly ReadEfContext _context;
 
-    public TodoLexicalSearchRepository(EfContext context)
+    public TodoLexicalSearchRepository(ReadEfContext context)
     {
         _context = context;
     }

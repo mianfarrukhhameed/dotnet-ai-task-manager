@@ -7,9 +7,9 @@ using System.IO;
 
 namespace Fistix.TaskManager.DataLayer;
 
-public class EfContextDesignTimeFactory : IDesignTimeDbContextFactory<EfContext>
+public class EfContextDesignTimeFactory : IDesignTimeDbContextFactory<WriteEfContext>
 {
-    public EfContext CreateDbContext(string[] args)
+    public WriteEfContext CreateDbContext(string[] args)
     {
         var basePath = ResolveConfigBasePath();
         var configuration = new ConfigurationBuilder()
@@ -21,10 +21,10 @@ public class EfContextDesignTimeFactory : IDesignTimeDbContextFactory<EfContext>
         var connectionString = configuration.GetConnectionString("MainDb")
             ?? Environment.GetEnvironmentVariable("ConnectionStrings__MainDb");
 
-        var optionsBuilder = new DbContextOptionsBuilder<EfContext>();
+        var optionsBuilder = new DbContextOptionsBuilder<WriteEfContext>();
         optionsBuilder.UseNpgsql(connectionString, o => o.UseVector());
 
-        return new EfContext(optionsBuilder.Options);
+        return new WriteEfContext(optionsBuilder.Options);
     }
 
     private static string ResolveConfigBasePath()

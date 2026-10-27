@@ -14,9 +14,9 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public sealed class KnowledgeIngestJobRepository : IKnowledgeIngestJobRepository
 {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _context;
 
-    public KnowledgeIngestJobRepository(EfContext context)
+    public KnowledgeIngestJobRepository(WriteEfContext context)
     {
         _context = context;
     }

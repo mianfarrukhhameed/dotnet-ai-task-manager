@@ -11,7 +11,7 @@ using Pgvector;
 
 namespace Fistix.TaskManager.DataLayer.Migrations
 {
-    [DbContext(typeof(EfContext))]
+    [DbContext(typeof(WriteEfContext))]
     partial class EfContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)

@@ -4,14 +4,13 @@ using Fistix.TaskManager.Core;
 using Fistix.TaskManager.Core.Abstractions.Repositories;
 using Fistix.TaskManager.Core.Abstractions.Services;
 using Fistix.TaskManager.Core.DomainModel.Aggregates;
+using Fistix.TaskManager.Core.DomainModel.Constants;
 using Fistix.TaskManager.Core.SecurityModel;
 using Fistix.TaskManager.ServiceLayer.Background;
 using Fistix.TaskManager.ViewModel.Commands.Todos;
 using Fistix.TaskManager.ViewModel.Dtos;
 using MediatR;
 using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -57,14 +56,19 @@ namespace Fistix.TaskManager.ServiceLayer.Todos
       todoTask.CreatedOn = DateTime.UtcNow;
       todoTask.CreatedByUserId = TodoAccessGuard.RequireCurrentUserId(_currentUserService);
       await _todoTaskRepository.Create(todoTask, cancellationToken);
-      todoTask = await _todoTaskRepository.Get(todoTask.ExternalId, cancellationToken);
 
       if (_aiConfig.Features.EnableClassification)
       {
         await _todoAiMetadataRepository.MarkClassificationPendingAsync(todoTask.Id, cancellationToken);
         await _classificationQueue.EnqueueAsync(todoTask.ExternalId, cancellationToken);
         _logger.LogInformation("Queued background classification for todo {TodoExternalId}", todoTask.ExternalId);
-        todoTask = await _todoTaskRepository.Get(todoTask.ExternalId, cancellationToken);
+        todoTask.AiMetadata = new TodoAiMetadata
+        {
+          TodoId = todoTask.Id,
+          ClassificationStatus = ClassificationStatus.Pending,
+          CreatedAt = DateTime.UtcNow,
+          UpdatedAt = DateTime.UtcNow
+        };
       }
 
       if (_aiConfig.Features.EnableEmbeddings)

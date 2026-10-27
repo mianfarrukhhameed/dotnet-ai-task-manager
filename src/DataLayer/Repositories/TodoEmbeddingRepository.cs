@@ -15,22 +15,24 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public class TodoEmbeddingRepository : ITodoEmbeddingRepository
 {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _write;
+    private readonly ReadEfContext _read;
 
-    public TodoEmbeddingRepository(EfContext context)
+    public TodoEmbeddingRepository(WriteEfContext write, ReadEfContext read)
     {
-        _context = context;
+        _write = write;
+        _read = read;
     }
 
     public async Task UpsertAsync(int todoId, float[] embedding, string model, CancellationToken cancellationToken)
     {
         var vector = new Vector(embedding);
-        var existing = await _context.TodoEmbeddings
+        var existing = await _write.TodoEmbeddings
             .FirstOrDefaultAsync(e => e.TodoId == todoId && e.EmbeddingModel == model, cancellationToken);
 
         if (existing is null)
         {
-            _context.TodoEmbeddings.Add(new TodoEmbedding
+            _write.TodoEmbeddings.Add(new TodoEmbedding
             {
                 TodoId = todoId,
                 Embedding = vector,
@@ -44,12 +46,12 @@ public class TodoEmbeddingRepository : ITodoEmbeddingRepository
             existing.UpdatedAt = DateTime.UtcNow;
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _write.SaveChangesAsync(cancellationToken);
     }
 
     public Task<TodoEmbedding?> GetByTodoIdAsync(int todoId, CancellationToken cancellationToken)
     {
-        return _context.TodoEmbeddings
+        return _write.TodoEmbeddings
             .AsNoTracking()
             .FirstOrDefaultAsync(e => e.TodoId == todoId, cancellationToken);
     }
@@ -68,8 +70,7 @@ public class TodoEmbeddingRepository : ITodoEmbeddingRepository
         }
 
         var queryVector = new Vector(queryEmbedding);
-        var query = _context.TodoEmbeddings
-            .AsNoTracking()
+        var query = _read.TodoEmbeddings
             .Where(e => e.EmbeddingModel == embeddingModel);
 
         if (ownerExternalId.HasValue)
@@ -103,11 +104,12 @@ public class TodoEmbeddingRepository : ITodoEmbeddingRepository
         string embeddingModel,
         CancellationToken cancellationToken)
     {
-        var embeddedTodoIds = _context.TodoEmbeddings
+        // Backfill runs on write side (worker).
+        var embeddedTodoIds = _write.TodoEmbeddings
             .Where(e => e.EmbeddingModel == embeddingModel)
             .Select(e => e.TodoId);
 
-        return await _context.TodoTasks
+        return await _write.TodoTasks
             .AsNoTracking()
             .Where(t => !embeddedTodoIds.Contains(t.Id))
             .Select(t => t.ExternalId)

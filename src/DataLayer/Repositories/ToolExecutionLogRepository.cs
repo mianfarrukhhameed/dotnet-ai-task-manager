@@ -9,9 +9,9 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public class ToolExecutionLogRepository : IToolExecutionLogRepository
 {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _context;
 
-    public ToolExecutionLogRepository(EfContext context)
+    public ToolExecutionLogRepository(WriteEfContext context)
     {
         _context = context;
     }

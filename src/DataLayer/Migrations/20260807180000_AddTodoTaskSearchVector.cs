@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Fistix.TaskManager.DataLayer.Migrations
 {
     /// <inheritdoc />
-    [DbContext(typeof(EfContext))]
+    [DbContext(typeof(WriteEfContext))]
     [Migration("20260807180000_AddTodoTaskSearchVector")]
     public partial class AddTodoTaskSearchVector : Migration
     {

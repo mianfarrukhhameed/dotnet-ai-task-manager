@@ -11,9 +11,9 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public class TodoAiMetadataRepository : ITodoAiMetadataRepository
 {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _context;
 
-    public TodoAiMetadataRepository(EfContext context)
+    public TodoAiMetadataRepository(WriteEfContext context)
     {
         _context = context;
     }

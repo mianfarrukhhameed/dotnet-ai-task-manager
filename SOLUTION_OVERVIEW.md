@@ -1,212 +1,172 @@
-# Task Manager - Blazor WASM + ASP.NET API Solution Overview
+# Solution overview (for AI agents)
 
-## Project Structure
+Orientation brief for coding agents working in this repo.  
+Human GitHub overview: [`README.md`](README.md).  
+Per-feature AI implementation: [`docs/AI_FEATURES.md`](docs/AI_FEATURES.md).
+
+> Demo / portfolio task manager + AI engineering lab — not a production SaaS product.
+
+## What this system is
+
+.NET 10 full-stack **task manager** (todos, sprints) with production-minded AI paths: summarization, classification, local embeddings + pgvector, semantic search, todo RAG, Knowledge Lab (document RAG), function calling, hold-to-talk voice → tools, Microsoft Agent Framework sprint optimizer (propose → user approve), MCP for Claude Desktop, durable AI batch jobs.
+
+**Solution:** `src/TaskManager.sln`
+
+## Doc map
+
+| Doc | Audience | Contents |
+|-----|----------|----------|
+| `README.md` | GitHub / humans | Showcase table, quick start, OTel/eval overview |
+| `SOLUTION_OVERVIEW.md` | AI agents | Layers, flow, conventions, where to put code |
+| `docs/AI_FEATURES.md` | Engineers / agents | Each AI feature: API, flags, flows, gates, primary types |
+| `.cursor/rules/*` | Cursor | Always-on stack / conventions / never-do |
+
+## Project structure
 
 ```
 src/
-├── WebApi/                  # ASP.NET Core 10.0 REST API
-├── WebApp/                  # Blazor WebAssembly 10.0 Client
-├── Core/                    # Core business logic & domain models
-├── ServiceLayer/            # Application services & CQRS handlers
-├── DataLayer/               # Entity Framework Core data access
-├── ViewModel/               # DTOs, commands, queries, validators
-└── Sql/                     # (retired — schema via EF Core + PostgreSQL)
+├── WebApp/            # Blazor WASM (MudBlazor, Auth0 OIDC, Rx *StateService)
+├── WebApi/            # ASP.NET Core API (JWT, Swagger, SignalR, rate limits)
+├── AiLayer/           # Pipelines: summarize, classify, embed, RAG, tools, eval harnesses
+├── ServiceLayer/      # MediatR handlers, agents, background jobs/queues
+├── DataLayer/         # EF Core + Npgsql / pgvector, repositories, migrations
+├── Core/              # Domain, abstractions, AutoMapper, security helpers
+├── ViewModel/         # Commands, queries, DTOs, FluentValidation
+├── McpServer/         # MCP stdio → WebApi as Auth0 user (no direct DB)
+├── AppHost/           # .NET Aspire orchestrator
+├── ServiceDefaults/   # Health, OpenTelemetry, resilience
+└── Tests/             # xUnit (AiLayer.Tests, ServiceLayer.Tests, …)
 ```
 
-## Tech Stack
+## Request flow
 
-### Backend (WebApi)
-- **Framework**: ASP.NET Core 10.0 (minimal hosting model)
-- **Architecture**: CQRS with MediatR
-- **Database**: PostgreSQL with Entity Framework Core 10.0.0 (Npgsql)
-- **Authentication**: OAuth2 with Auth0 (JWT Bearer tokens)
-- **API Documentation**: Swagger/Swashbuckle 6.8.0
-- **Validation**: FluentValidation 11.8.1
-- **Mapping**: AutoMapper 12.0.1
-- **Features**:
-  - Azure App Configuration support
-  - Application Insights telemetry
-  - Custom authorization with role-based policies
-  - CORS configuration
-  - XML documentation
-
-### Frontend (WebApp)
-- **Framework**: Blazor WebAssembly 10.0
-- **Authentication**: OIDC with Auth0 (RemoteAuthenticatorView)
-- **HTTP Client**: Custom authorization message handler
-- **Validation**: FluentValidation 11.8.1 + Accelist.FluentValidation.Blazor 4.0.0
-- **Features**:
-  - Server-side auth0 logout flow
-  - Cascading authentication state
-  - Protected routes with AuthorizeRouteView
-  - Service/state management pattern
-  - Todo CRUD operations
-
-## Dependency Injection & Configuration
-
-### WebApi (Program.cs)
-```csharp
-- Services registered via extensions:
-  - AddCommonServices() → Swagger, Auth0, CORS, Authorization
-  - AddServiceLayer() → MediatR, AutoMapper, ServiceLayer
-  - AddControllers() → FluentValidation
-- Configuration sources:
-  - appsettings.json (base)
-  - Azure App Configuration (if AppConfigConnectionString env var set)
-  - Environment variables
+```mermaid
+flowchart LR
+  UI[WebApp] -->|JWT| API[WebApi]
+  API --> SL[ServiceLayer]
+  SL --> AI[AiLayer]
+  SL -->|commands / jobs / profile| WriteDb[(Postgres PRIMARY MainDb)]
+  SL -->|queries / search / RAG| ReadDb[(Postgres READ MainDbRead)]
+  WriteDb -.->|streaming replica TBD; fallback=MainDb| ReadDb
+  AI --> LLM[LLM providers]
+  MCP[McpServer] -->|Bearer| API
+  Aspire[AppHost] --> API
+  Aspire --> UI
+  Aspire --> WriteDb
 ```
 
-### WebApp (Program.cs)
-```csharp
-- Services registered via extensions:
-  - SetupAuth0Service() → OIDC authentication
-  - SetupDefaultApiClient() → Named HttpClient with auth handler
-  - AddValidatorsFromAssembly() → FluentValidation validators
-- Configuration:
-  - wwwroot/appsettings.json (client-side)
-  - Auth0 settings
-  - API endpoint URL
-```
+Typical path: **WebApp JWT → controller → MediatR → ServiceLayer handler → DataLayer and/or AiLayer → PostgreSQL.**
 
-## Authentication Flow
+**Phase 1 CQRS data access:** `WriteEfContext` → `ConnectionStrings:MainDb` (migrations, mutations, jobs, profile). `ReadEfContext` → `MainDbRead` or fallback to `MainDb` (lists, semantic/lexical search, RAG reads). See [`docs/architecture/MIGRATION_PLAN.md`](docs/architecture/MIGRATION_PLAN.md).
 
-### Auth0 Integration
-1. **WebApp**: User initiates login → RemoteAuthenticatorView navigates to Auth0
-2. **Auth0**: User authenticates, returns ID token + access token
-3. **WebApp**: Tokens stored in browser session storage (via RemoteAuthenticatorView)
-4. **API Calls**: CustomAuthorizationMessageHandler automatically attaches access token
-5. **WebApi**: Validates JWT token against Auth0 authority
-6. **Claims**: Token validated, claims extracted (user identity, roles, etc.)
-7. **Logout**: Auth0 v2 logout endpoint (custom implementation in Authentication.razor)
+Controllers stay thin: validate `ModelState` → `_mediator.Send(...)` → map domain exceptions to `ProblemDetails`. Use `ControllerBase` only — **no minimal APIs**.
 
-## Project-Specific Patterns
+## Layer responsibilities
 
-### CQRS Pattern (WebApi)
-- Commands: `CreateTodoTaskCommand`, etc. (write operations)
-- Queries: `GetAllTodoTasksQuery`, etc. (read operations)
-- Handlers: Registered with MediatR
-- Validators: Fluent validators for each command/query
+| Layer | Put here | Do not put here |
+|-------|----------|-----------------|
+| WebApi | Controllers, hubs, auth/rate-limit wiring | Business logic, `DbContext` |
+| ServiceLayer | Handlers, agents, background services, access guards usage | Raw HTTP DTOs duplicated outside ViewModel |
+| AiLayer | LLM/embed pipelines, sanitizers, validators, SK/MAF helpers | Tenancy/calendar filters that belong in handlers |
+| DataLayer | EF config, repos, migrations | Domain rules / LLM prompts |
+| ViewModel | Commands, queries, DTOs, validators | Handlers |
+| Core | Aggregates, repo interfaces, shared security | Feature-specific UI |
+| WebApp | MudBlazor pages, `*DataService` (HTTP), `*StateService` (Rx) | Duplicate ViewModel contracts |
 
-### State Management (WebApp)
-- `TodoDataService`: Direct API communication
-- `TodoStateService`: Client-side state management
-- Components: Stateless presentation layer
+## Conventions (must follow)
 
-### Authorization Levels
-- **Authenticated**: All logged-in users (implicit)
-- **Admin**: Users with `Role: Admin` claim (explicit policy)
-  - Set via `ICurrentUserService.HasAdminProfile`
+### API / CQRS
 
-## Configuration Files
+- Commands/queries/validators/DTOs in **ViewModel**; handlers in **ServiceLayer**; repos implement **Core** abstractions in **DataLayer**.
+- Naming: `CreateTodoTaskCommand` + `*Handler` + `*Validator`.
+- Public IDs: `ExternalId` (`Guid`) — never expose EF `Id` on the API.
+- Authz: `TodoAccessGuard` / knowledge owner checks; admin policy `PolicyNames.IsAdmin`.
+- Controllers remain `[Authorize]` unless an endpoint is intentionally anonymous.
+- Errors: `ProblemDetails` / `ApiErrorResponses` — no stack traces to clients.
 
-### appsettings.json (WebApi)
-```json
-- ConnectionStrings: PostgreSQL (see docker-compose.yml)
-- App: CORS origins, API access key
-- Auth0: Authority, Audience, ClientId
-- Swagger: Version, title
-- Azure: Storage config (optional)
-```
+### WebApp
 
-### appsettings.json (WebApp - wwwroot/)
-```json
-- Auth0: Authority, ClientId, Scope
-- API: Base URL (https://localhost:5001/)
-```
+- MudBlazor. Split HTTP (`*DataService`) from Rx state (`*StateService`).
+- Reuse ViewModel types — do not redefine DTOs/commands on the client.
+- Folder spelling for auth/DI helpers: `WebApp/Extentions` (existing).
 
-### launchSettings.json
-- Removed deprecated `dotnetRunMessages` property
-- Both projects use HTTPS with port binding
-- WebApi: 5000 (HTTP), 5001 (HTTPS)
-- WebApp: 5200 (HTTP), 5002 (HTTPS)
+### AI
 
-## Key Services
+- Sanitize inputs with `PromptInputSanitizer`.
+- Validate outputs with `LlmOutputValidator` / classification guardrails.
+- Respect `Ai:Features` flags (disabled → 503) and dedicated AI rate-limit policies.
+- Feature detail (APIs, knobs, primary code): **`docs/AI_FEATURES.md`**.
 
-### WebApi Services
-- **CurrentUserService**: Extracts current user from HTTP context
-- **TodoDataService**: (WebApp) Calls API endpoints
-- **TodoStateService**: (WebApp) Manages local todo state
-- **CustomAuthorizationMessageHandler**: Adds token to API requests
+### Tests
 
-### Extension Methods
-- `ServiceCollectionExtension`: DI registration (WebApi)
-- `ServiceCollectionExtentions`: DI registration (WebApp)
-- `ApplicationBuilderExtension`: Middleware setup (WebApi)
-- `MasterConfigExtension`: Config population (WebApi)
+- xUnit under `src/Tests/*`. Prefer inline fakes over Moq.
+- Build/test via `src/TaskManager.sln`.
 
-## .NET 10 Compatibility Status
+## Never do
 
-### ✅ Fully Compatible
-- All core ASP.NET packages (10.0.0)
-- Entity Framework Core (10.0.0)
-- Blazor WebAssembly (10.0.0)
-- Authentication packages (10.0.0)
-- FluentValidation (11.8.1)
-- AutoMapper (12.0.1)
+- Commit secrets (API keys, DB passwords) — use user-secrets / env / Key Vault; keep committed `appsettings.json` placeholders empty.
+- Fat controllers or `DbContext` in WebApi.
+- Drop `[Authorize]` by accident.
+- SQL string concatenation — use EF / parameterized queries.
+- Skip ownership checks on owned resources.
+- Prompt LLMs with unsanitized user text or trust LLM output without validation.
+- Bypass `Ai:Features` / AI rate limits on new AI endpoints.
+- Duplicate ViewModel contracts in WebApp.
 
-### ✅ Modernized
-- Migrated WebApi from Startup.cs → minimal hosting (Program.cs)
-- Removed deprecated `Router.PreferExactMatches`
-- Removed deprecated `SignOutSessionStateManager`
-- Fixed deprecated `launchSettings.json` property
-- Updated packages for .NET 10 support
+## Cross-cutting infrastructure
 
-### ⚠️ Known Issues
-- Accelist.FluentValidation.Blazor may have validation runtime issues (pre-existing)
-- SurveyPrompt component namespace resolution in Index.razor (cosmetic warning)
-- AutoMapper 12.0.1 has security advisory (low-impact, requires investigation)
+### Auth
 
-## Build & Deployment
+- WebApp: Auth0 OIDC.
+- WebApi: JWT Bearer (Auth0 authority/audience).
+- MCP: Auth0 Device Code + refresh → Bearer to WebApi (same authz as UI).
 
-### Development
-```bash
-# WebApi
-cd src/WebApi
-dotnet run
+### Aspire / local run
 
-# WebApp
-cd src/WebApp
-dotnet run
-```
+- Prefer `dotnet run --project src/AppHost/AppHost.csproj` (Postgres, WebApi, WebApp, optional Speaches/Whisper).
+- Without Aspire: Compose Postgres (often port **5433**) + run WebApi/WebApp separately.
+- Details: `README.md` quick start; Aspire notes in `docs/aspire/README.md`.
 
-### Build
-```bash
-dotnet build src/WebApi/WebApi.csproj
-dotnet build src/WebApp/WebApp.csproj
-```
+### SignalR hubs (authorized)
 
-### Production
-- WebApi: Deploy as standalone ASP.NET Core app (HTTPS required)
-- WebApp: Deploy `wwwroot` folder as static content (CORS must allow origin)
+| Hub | Path | Purpose |
+|-----|------|---------|
+| Classification | `/hubs/classification` | Classify job progress |
+| AI batch | `/hubs/ai-batch` | Batch job progress |
+| Sprint optimizer | `/hubs/sprint-optimizer` | MAF job progress |
+| Voice transcribe | `/hubs/voice-transcribe` | Chunked STT while holding mic |
+| Knowledge ingest | `/hubs/knowledge-ingest` | Document ingest progress |
 
-## Security Considerations
+### Observability
 
-1. **API Security**:
-   - JWT validation against Auth0
-   - CORS restricted to configured origins
-   - Role-based authorization for admin features
-   - HTTPS only in production
+- ActivitySource/Meter: `TaskManager.Ai`
+- Config: `Ai:Observability` (payload preview off by default)
+- Human-oriented notes: `README.md` (AI observability / validation sections)
 
-2. **Client Security**:
-   - Tokens stored in session storage (not localStorage)
-   - OIDC handles token refresh automatically
-   - CustomAuthorizationMessageHandler prevents token leaks
+## AI feature index (details elsewhere)
 
-3. **Database**:
-   - PostgreSQL with Entity Framework Core (Npgsql)
-   - Parameterized queries prevent SQL injection
+Do **not** re-implement feature docs here. See [`docs/AI_FEATURES.md`](docs/AI_FEATURES.md):
 
-## Future Enhancements
+1. RAG (todos Ask) · 2. Knowledge Lab · 3. Summarization · 4. Classification · 5. Embeddings · 6. Semantic search · 7. Function calling · 8. Agents / MAF (propose → approve/reject) · 9. MCP · 10. AI batch · 11. Voice
 
-1. Consider upgrading Accelist.FluentValidation.Blazor to latest compatible version
-2. Resolve AutoMapper vulnerability
-3. Add automated integration tests
-4. Implement SignalR for real-time updates
-5. Add PWA capabilities to WebApp
-6. Implement caching strategy for API responses
+Flags live under `Ai:Features` in `src/WebApi/appsettings.json`.
+
+## Key domains (non-AI)
+
+- **Todos** — CRUD, import, owner-scoped access.
+- **Sprints** — created from approved sprint-optimizer proposals; list/detail in UI.
+- **Knowledge documents** — upload → ingest job → chunks/embeddings → scoped Ask.
+
+## When adding a feature
+
+1. Contract in **ViewModel** (command/query + validator + DTO).
+2. Handler in **ServiceLayer**; reuse access guards.
+3. If AI: pipeline/helpers in **AiLayer**; wire flag + rate limit; sanitize/validate.
+4. Thin **WebApi** controller endpoint; map exceptions.
+5. WebApp: extend `*DataService` / `*StateService` + MudBlazor UI; reuse ViewModel types.
+6. Tests under `src/Tests/*`.
+7. If AI behavior changes, update `docs/AI_FEATURES.md`.
 
 ---
 
-**Last Updated**: March 2026
-**Target Framework**: .NET 10.0
-**Status**: Production Ready
+**Target:** .NET 10 · **Status:** demo / learning portfolio

@@ -13,9 +13,9 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public sealed class KnowledgeChunkRepository : IKnowledgeChunkRepository
 {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _context;
 
-    public KnowledgeChunkRepository(EfContext context)
+    public KnowledgeChunkRepository(WriteEfContext context)
     {
         _context = context;
     }

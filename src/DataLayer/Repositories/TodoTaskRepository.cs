@@ -13,30 +13,32 @@ namespace Fistix.TaskManager.DataLayer.Repositories
 {
   public class TodoTaskRepository : ITodoTaskRepository
   {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _write;
+    private readonly ReadEfContext _read;
 
-    public TodoTaskRepository(EfContext context)
+    public TodoTaskRepository(WriteEfContext write, ReadEfContext read)
     {
-      _context = context;
+      _write = write;
+      _read = read;
     }
 
     public async Task<bool> Create(TodoTask todoTask, CancellationToken cancellationToken)
     {
-      _context.TodoTasks.Add(todoTask);
-      var effectedRecords = await _context.SaveChangesAsync(cancellationToken);
+      _write.TodoTasks.Add(todoTask);
+      var effectedRecords = await _write.SaveChangesAsync(cancellationToken);
 
       return effectedRecords > 0;
     }
 
     public async Task CreateManyAsync(IReadOnlyList<TodoTask> todoTasks, CancellationToken cancellationToken)
     {
-      _context.TodoTasks.AddRange(todoTasks);
-      await _context.SaveChangesAsync(cancellationToken);
+      _write.TodoTasks.AddRange(todoTasks);
+      await _write.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<int> DeleteByImportTagAsync(Guid ownerExternalId, string importTag, CancellationToken cancellationToken)
     {
-      var todos = await _context.TodoTasks
+      var todos = await _write.TodoTasks
         .Where(t => t.CreatedByUserId == ownerExternalId && t.ImportTag == importTag)
         .ToListAsync(cancellationToken);
 
@@ -45,8 +47,8 @@ namespace Fistix.TaskManager.DataLayer.Repositories
         return 0;
       }
 
-      _context.TodoTasks.RemoveRange(todos);
-      await _context.SaveChangesAsync(cancellationToken);
+      _write.TodoTasks.RemoveRange(todos);
+      await _write.SaveChangesAsync(cancellationToken);
       return todos.Count;
     }
 
@@ -55,7 +57,8 @@ namespace Fistix.TaskManager.DataLayer.Repositories
       string importTag,
       CancellationToken cancellationToken)
     {
-      return await _context.TodoTasks
+      // Used by AI batch (write-side job) — primary.
+      return await _write.TodoTasks
         .Include(t => t.AiMetadata)
         .Where(t => t.CreatedByUserId == ownerExternalId && t.ImportTag == importTag)
         .ToListAsync(cancellationToken);
@@ -65,8 +68,7 @@ namespace Fistix.TaskManager.DataLayer.Repositories
       Guid ownerExternalId,
       CancellationToken cancellationToken)
     {
-      var todos = await _context.TodoTasks
-        .AsNoTracking()
+      var todos = await _read.TodoTasks
         .Include(t => t.AiMetadata)
         .Where(t => t.CreatedByUserId == ownerExternalId
                     && t.ImportTag != null
@@ -90,8 +92,7 @@ namespace Fistix.TaskManager.DataLayer.Repositories
       }
 
       var todoIds = todos.Select(t => t.Id).ToList();
-      var embeddedIds = await _context.TodoEmbeddings
-        .AsNoTracking()
+      var embeddedIds = await _read.TodoEmbeddings
         .Where(e => todoIds.Contains(e.TodoId))
         .Select(e => e.TodoId)
         .Distinct()
@@ -114,19 +115,20 @@ namespace Fistix.TaskManager.DataLayer.Repositories
 
     public async Task<bool> Delete(Guid externalId, CancellationToken cancellationToken)
     {
-      var todoTask = await _context.TodoTasks.FirstOrDefaultAsync(t => t.ExternalId == externalId, cancellationToken);
+      var todoTask = await _write.TodoTasks.FirstOrDefaultAsync(t => t.ExternalId == externalId, cancellationToken);
       if (todoTask == null)
         throw new NotFoundException();
-      
-      _context.TodoTasks.Remove(todoTask);
-      var effectedRecords = await _context.SaveChangesAsync(cancellationToken);
+
+      _write.TodoTasks.Remove(todoTask);
+      var effectedRecords = await _write.SaveChangesAsync(cancellationToken);
 
       return effectedRecords > 0;
     }
 
     public async Task<TodoTask> Get(Guid externalId, CancellationToken calcellationToken)
     {
-      var entity = await _context.TodoTasks
+      // Authz-before-write and command loads → primary.
+      var entity = await _write.TodoTasks
         .Include(t => t.AiMetadata)
         .FirstOrDefaultAsync(t => t.ExternalId == externalId, calcellationToken);
       if (entity == null)
@@ -137,14 +139,14 @@ namespace Fistix.TaskManager.DataLayer.Repositories
 
     public async Task<List<TodoTask>> GetAll(CancellationToken cancellationToken)
     {
-      return await _context.TodoTasks
+      return await _read.TodoTasks
         .Include(t => t.AiMetadata)
         .ToListAsync(cancellationToken);
     }
 
     public async Task<List<TodoTask>> GetByOwner(Guid ownerExternalId, CancellationToken cancellationToken)
     {
-      return await _context.TodoTasks
+      return await _read.TodoTasks
         .Include(t => t.AiMetadata)
         .Where(t => t.CreatedByUserId == ownerExternalId)
         .ToListAsync(cancellationToken);
@@ -152,8 +154,8 @@ namespace Fistix.TaskManager.DataLayer.Repositories
 
     public async Task<bool> Update(TodoTask todoTask, CancellationToken calcellationToken)
     {
-      _context.TodoTasks.Update(todoTask);
-      var effectedRecords = await _context.SaveChangesAsync();
+      _write.TodoTasks.Update(todoTask);
+      var effectedRecords = await _write.SaveChangesAsync(calcellationToken);
 
       return effectedRecords > 0;
     }

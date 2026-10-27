@@ -11,9 +11,9 @@ namespace Fistix.TaskManager.DataLayer.Repositories
 {
   public class UserProfileRepository: IUserProfileRepository
   {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _context;
 
-    public UserProfileRepository(EfContext context)
+    public UserProfileRepository(WriteEfContext context)
     {
       _context = context;
     }

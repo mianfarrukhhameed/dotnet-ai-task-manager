@@ -14,23 +14,26 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public class SprintRepository : ISprintRepository
 {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _write;
+    private readonly ReadEfContext _read;
 
-    public SprintRepository(EfContext context)
+    public SprintRepository(WriteEfContext write, ReadEfContext read)
     {
-        _context = context;
+        _write = write;
+        _read = read;
     }
 
     public async Task<bool> Create(Sprint sprint, CancellationToken cancellationToken)
     {
-        _context.Sprints.Add(sprint);
-        var effectedRecords = await _context.SaveChangesAsync(cancellationToken);
+        _write.Sprints.Add(sprint);
+        var effectedRecords = await _write.SaveChangesAsync(cancellationToken);
         return effectedRecords > 0;
     }
 
     public async Task<Sprint> Get(Guid externalId, CancellationToken cancellationToken)
     {
-        var entity = await _context.Sprints
+        // Query display → read (fallback = primary when MainDbRead unset).
+        var entity = await _read.Sprints
             .Include(s => s.SprintTodos)
             .ThenInclude(st => st.TodoTask)
             .FirstOrDefaultAsync(s => s.ExternalId == externalId, cancellationToken);
@@ -45,7 +48,7 @@ public class SprintRepository : ISprintRepository
 
     public async Task<List<Sprint>> GetByOwner(Guid ownerExternalId, CancellationToken cancellationToken)
     {
-        return await _context.Sprints
+        return await _read.Sprints
             .Include(s => s.SprintTodos)
             .ThenInclude(st => st.TodoTask)
             .Where(s => s.CreatedByUserId == ownerExternalId)

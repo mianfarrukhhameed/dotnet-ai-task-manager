@@ -4,9 +4,9 @@ using Pgvector.EntityFrameworkCore;
 
 namespace Fistix.TaskManager.DataLayer
 {
-  public class EfContext: DbContext
+  public abstract class TaskManagerDbContext : DbContext
   {
-    public EfContext(DbContextOptions<EfContext> options) : base(options)
+    protected TaskManagerDbContext(DbContextOptions options) : base(options)
     {}
 
     public DbSet<TodoTask> TodoTasks { get; set; }
