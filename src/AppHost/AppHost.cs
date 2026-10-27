@@ -11,6 +11,11 @@ var postgres = builder
 // Resource name "MainDb" injects ConnectionStrings__MainDb for WebApi MasterConfig binding.
 var mainDb = postgres.AddDatabase("MainDb", databaseName: "taskdb");
 
+// Phase 2: RabbitMQ for MassTransit + EF transactional outbox delivery.
+var rabbitmq = builder
+    .AddRabbitMQ("rabbitmq")
+    .WithManagementPlugin();
+
 // Local OpenAI-compatible STT (Speaches / faster-whisper). CPU image + small model for better command accuracy.
 // Persist HF model cache so Aspire/container restarts do not re-download every time.
 var whisper = builder
@@ -24,7 +29,9 @@ var whisper = builder
 var webapi = builder
     .AddProject<Projects.WebApi>("webapi")
     .WithReference(mainDb)
+    .WithReference(rabbitmq)
     .WaitFor(mainDb)
+    .WaitFor(rabbitmq)
     .WaitFor(whisper)
     .WithEnvironment("Ai__SpeechToText__Endpoint", whisper.GetEndpoint("http"))
     .WithEndpoint("http", endpoint =>

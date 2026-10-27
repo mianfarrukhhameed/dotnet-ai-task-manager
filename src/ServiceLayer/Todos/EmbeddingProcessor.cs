@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Fistix.TaskManager.AiLayer.Abstractions;
 using Fistix.TaskManager.AiLayer.Shared;
 using Fistix.TaskManager.Core.Abstractions.Repositories;
-using Fistix.TaskManager.ServiceLayer.Background;
 using Microsoft.Extensions.Logging;
 
 namespace Fistix.TaskManager.ServiceLayer.Todos;

@@ -1,4 +1,5 @@
 ﻿using Fistix.TaskManager.Core.DomainModel.Aggregates;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Pgvector.EntityFrameworkCore;
 
@@ -29,6 +30,11 @@ namespace Fistix.TaskManager.DataLayer
       base.OnModelCreating(modelBuilder);
 
       modelBuilder.HasPostgresExtension("vector");
+
+      // MassTransit EF transactional outbox (write DB only; ReadEfContext inherits same model).
+      modelBuilder.AddInboxStateEntity();
+      modelBuilder.AddOutboxMessageEntity();
+      modelBuilder.AddOutboxStateEntity();
 
       TodoTaskModelConfig(modelBuilder);
       UserProfileModelConfig(modelBuilder);

@@ -30,15 +30,11 @@ namespace Fistix.TaskManager.ServiceLayer
       services.AddScoped<SprintOptimizerAgent>();
       services.AddScoped<SprintOptimizerPersistService>();
 
-      services.AddSingleton<IClassificationQueue, ClassificationQueue>();
       services.AddScoped<IClassificationProcessor, ClassificationProcessor>();
-      services.AddHostedService<ClassificationBackgroundService>();
-
-      services.AddSingleton<IEmbeddingQueue, EmbeddingQueue>();
       services.AddScoped<IEmbeddingProcessor, EmbeddingProcessor>();
       services.AddScoped<IVectorStore, PgVectorEmbeddingStore>();
       services.AddScoped<ILexicalTodoSearch, PostgresLexicalTodoSearch>();
-      services.AddHostedService<EmbeddingBackgroundService>();
+      services.AddHostedService<EmbeddingBackfillHostedService>();
 
       services.AddScoped<IAiBatchStepExecutor, AiBatchStepExecutor>();
       services.AddHostedService<AiBatchBackgroundService>();

@@ -4,9 +4,9 @@
 > **Rule:** design all phases here first; implement only via small PRs, one phase (or phase slice) at a time.  
 > **Do not** extract microservices before Phases 1–3 land in the monolith.
 
-**Status:** Phase 1 in progress (`arch/phase-1-cqrs-db-split`)  
+**Status:** Phase 2 done (`arch/phase-2-outbox-events`); Phase 1 done on `arch/phase-1-cqrs-db-split`  
 **Solution:** `src/TaskManager.sln`  
-**Current shape:** Logical CQRS (MediatR) + dual EF contexts (`WriteEfContext` / `ReadEfContext`); `MainDbRead` falls back to `MainDb`
+**Current shape:** Logical CQRS (MediatR) + dual EF contexts + MassTransit EF outbox → RabbitMQ; classify/embed consumers in WebApi
 
 ---
 
@@ -185,13 +185,13 @@ Command handler (WriteEfContext, one transaction)
 
 ### Design checklist (fill before / during PRs)
 
-- [ ] Add Contracts project to `TaskManager.sln`
-- [ ] MassTransit EF outbox migration / schema on write DB
+- [x] Add Contracts project to `TaskManager.sln`
+- [x] MassTransit EF outbox migration / schema on write DB
 - [ ] Correlation / causation IDs for OTel
-- [ ] Consumer idempotency rules (classify re-apply; embedding upsert)
-- [ ] Update handler: detect title/description change before publishing AI-related messages
-- [ ] Remove `ClassificationQueue` / `EmbeddingQueue` registration after cutover
-- [ ] Never bus-publish outside transactional outbox on the request path
+- [x] Consumer idempotency rules (classify re-apply; embedding upsert)
+- [x] Update handler: detect title/description change before publishing AI-related messages
+- [x] Remove `ClassificationQueue` / `EmbeddingQueue` registration after cutover
+- [x] Never bus-publish outside transactional outbox on the request path
 
 ### PR slices (draft)
 
@@ -205,13 +205,13 @@ Command handler (WriteEfContext, one transaction)
 
 ### Success criteria
 
-- [ ] Todo write + outbox row commit atomically; rollback publishes nothing
-- [ ] Process kill after commit still results in RabbitMQ delivery via outbox
-- [ ] Classify/embed run from MassTransit consumers in WebApi, not `Channel` queues
-- [ ] Re-delivery does not corrupt AI metadata / embeddings
-- [ ] Create/update HTTP path does not call broker without outbox
-- [ ] Priority/due-date-only update does not trigger classify/embed
-- [ ] Contracts live in a dedicated assembly (not ViewModel)
+- [x] Todo write + outbox row commit atomically; rollback publishes nothing
+- [x] Process kill after commit still results in RabbitMQ delivery via outbox *(MassTransit bus outbox delivery service)*
+- [x] Classify/embed run from MassTransit consumers in WebApi, not `Channel` queues
+- [x] Re-delivery does not corrupt AI metadata / embeddings *(processor early-outs / upsert)*
+- [x] Create/update HTTP path does not call broker without outbox
+- [x] Priority/due-date-only update does not trigger classify/embed
+- [x] Contracts live in a dedicated assembly (not ViewModel)
 
 ### Open questions (Phase 2)
 

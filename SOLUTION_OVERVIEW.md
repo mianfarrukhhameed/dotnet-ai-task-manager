@@ -48,6 +48,9 @@ flowchart LR
   SL -->|commands / jobs / profile| WriteDb[(Postgres PRIMARY MainDb)]
   SL -->|queries / search / RAG| ReadDb[(Postgres READ MainDbRead)]
   WriteDb -.->|streaming replica TBD; fallback=MainDb| ReadDb
+  SL -->|IPublishEndpoint + EF outbox| Outbox[(Outbox tables on MainDb)]
+  Outbox -->|MassTransit delivery| RMQ[[RabbitMQ]]
+  RMQ -->|ClassifyTodo / EmbedTodo consumers in WebApi| SL
   AI --> LLM[LLM providers]
   MCP[McpServer] -->|Bearer| API
   Aspire[AppHost] --> API
@@ -57,7 +60,9 @@ flowchart LR
 
 Typical path: **WebApp JWT → controller → MediatR → ServiceLayer handler → DataLayer and/or AiLayer → PostgreSQL.**
 
-**Phase 1 CQRS data access:** `WriteEfContext` → `ConnectionStrings:MainDb` (migrations, mutations, jobs, profile). `ReadEfContext` → `MainDbRead` or fallback to `MainDb` (lists, semantic/lexical search, RAG reads). See [`docs/architecture/MIGRATION_PLAN.md`](docs/architecture/MIGRATION_PLAN.md).
+**Phase 1 CQRS data access:** `WriteEfContext` → `ConnectionStrings:MainDb` (migrations, mutations, jobs, profile). `ReadEfContext` → `MainDbRead` or fallback to `MainDb` (lists, semantic/lexical search, RAG reads).
+
+**Phase 2 messaging:** MassTransit + RabbitMQ (Aspire `rabbitmq`); EF transactional outbox on `WriteEfContext`; contracts in `src/Contracts` (`TodoCreated` / `TodoUpdated` / `TodoDeleted`). Classify/embed consumers run in-process in WebApi (worker extract in Phase 4). Update publishes AI side effects only when title/description change. See [`docs/architecture/MIGRATION_PLAN.md`](docs/architecture/MIGRATION_PLAN.md).
 
 Controllers stay thin: validate `ModelState` → `_mediator.Send(...)` → map domain exceptions to `ProblemDetails`. Use `ControllerBase` only — **no minimal APIs**.
 

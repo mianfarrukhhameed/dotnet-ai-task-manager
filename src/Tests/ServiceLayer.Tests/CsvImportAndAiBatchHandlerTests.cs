@@ -9,6 +9,7 @@ using Fistix.TaskManager.ServiceLayer.Notifications;
 using Fistix.TaskManager.ServiceLayer.Todos;
 using Fistix.TaskManager.ViewModel.Commands.Todos;
 using Fistix.TaskManager.ViewModel.Queries.Todos;
+using MassTransit;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -127,7 +128,7 @@ public class CsvImportAndAiBatchHandlerTests
             MakeTodo(owner, "tag-1", "B"),
             MakeTodo(owner, "tag-2", "C")
         ]);
-        var handler = new DeleteImportedTodosCommandHandler(todos, currentUser);
+        var handler = new DeleteImportedTodosCommandHandler(todos, new NoOpPublishEndpoint(), currentUser);
 
         var result = await handler.Handle(
             new DeleteImportedTodosCommand { ImportTag = "tag-1" },
@@ -567,6 +568,52 @@ public class CsvImportAndAiBatchHandlerTests
             Task.CompletedTask;
 
         public Task SetWasOverriddenAsync(int todoId, bool wasOverridden, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class NoOpPublishEndpoint : IPublishEndpoint
+    {
+        public ConnectHandle ConnectPublishObserver(IPublishObserver observer) =>
+            throw new NotSupportedException();
+
+        public Task Publish<T>(T message, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task Publish<T>(T message, IPipe<PublishContext<T>> publishPipe, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task Publish<T>(T message, IPipe<PublishContext> publishPipe, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task Publish(object message, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task Publish(object message, IPipe<PublishContext> publishPipe, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task Publish(object message, Type messageType, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task Publish(
+            object message,
+            Type messageType,
+            IPipe<PublishContext> publishPipe,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task Publish<T>(object values, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task Publish<T>(object values, IPipe<PublishContext<T>> publishPipe, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task Publish<T>(object values, IPipe<PublishContext> publishPipe, CancellationToken cancellationToken = default)
+            where T : class =>
             Task.CompletedTask;
     }
 }

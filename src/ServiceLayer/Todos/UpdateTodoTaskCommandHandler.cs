@@ -1,15 +1,18 @@
 using AutoMapper;
 using Fistix.TaskManager.AiLayer.Observability;
 using Fistix.TaskManager.AiLayer.Shared;
+using Fistix.TaskManager.Contracts.Todos;
 using Fistix.TaskManager.Core;
 using Fistix.TaskManager.Core.Abstractions.Repositories;
 using Fistix.TaskManager.Core.Abstractions.Services;
 using Fistix.TaskManager.Core.SecurityModel;
-using Fistix.TaskManager.ServiceLayer.Background;
+using Fistix.TaskManager.DataLayer;
 using Fistix.TaskManager.ViewModel.Commands.Todos;
 using Fistix.TaskManager.ViewModel.Dtos;
+using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,9 +22,9 @@ public class UpdateTodoTaskCommandHandler : IRequestHandler<UpdateTodoTaskComman
 {
     private readonly IMapper _mapper;
     private readonly ITodoTaskRepository _todoTaskRepository;
-    private readonly ITodoAiMetadataRepository _todoAiMetadataRepository;
+    private readonly WriteEfContext _write;
     private readonly ICurrentUserService _currentUserService;
-    private readonly IEmbeddingQueue _embeddingQueue;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly AiConfiguration _aiConfig;
     private readonly IAiTelemetry _telemetry;
     private readonly ILogger<UpdateTodoTaskCommandHandler> _logger;
@@ -29,18 +32,18 @@ public class UpdateTodoTaskCommandHandler : IRequestHandler<UpdateTodoTaskComman
     public UpdateTodoTaskCommandHandler(
         IMapper mapper,
         ITodoTaskRepository todoTaskRepository,
-        ITodoAiMetadataRepository todoAiMetadataRepository,
+        WriteEfContext write,
         ICurrentUserService currentUserService,
-        IEmbeddingQueue embeddingQueue,
+        IPublishEndpoint publishEndpoint,
         AiConfiguration aiConfig,
         ILogger<UpdateTodoTaskCommandHandler> logger,
         IAiTelemetry? telemetry = null)
     {
         _mapper = mapper;
         _todoTaskRepository = todoTaskRepository;
-        _todoAiMetadataRepository = todoAiMetadataRepository;
+        _write = write;
         _currentUserService = currentUserService;
-        _embeddingQueue = embeddingQueue;
+        _publishEndpoint = publishEndpoint;
         _aiConfig = aiConfig;
         _logger = logger;
         _telemetry = telemetry ?? NullAiTelemetry.Instance;
@@ -52,28 +55,42 @@ public class UpdateTodoTaskCommandHandler : IRequestHandler<UpdateTodoTaskComman
 
         TodoAccessGuard.EnsureCanAccess(todoTask, _currentUserService);
 
+        var textChanged =
+            !string.Equals(todoTask.Title, command.Title, StringComparison.Ordinal)
+            || !string.Equals(todoTask.Description ?? string.Empty, command.Description ?? string.Empty, StringComparison.Ordinal);
+
         todoTask.Title = command.Title;
         todoTask.Description = command.Description;
         todoTask.DueDate = DateTimeUtc.EnsureUtc(command.DueDate);
         todoTask.Priority = ClassificationGuardrails.ToTaskPriority(command.Priority);
 
-        await _todoTaskRepository.Update(todoTask, cancellationToken);
-
-        var metadata = await _todoAiMetadataRepository.GetByTodoExternalIdAsync(command.ExternalId, cancellationToken);
+        var metadata = todoTask.AiMetadata;
         if (metadata is not null && !string.IsNullOrWhiteSpace(metadata.AiPriority))
         {
             var wasOverridden = ClassificationGuardrails.IsPriorityOverridden(
                 todoTask.Priority,
                 metadata.AiPriority);
-            await _todoAiMetadataRepository.SetWasOverriddenAsync(todoTask.Id, wasOverridden, cancellationToken);
+            metadata.WasOverridden = wasOverridden;
+            metadata.UpdatedAt = DateTime.UtcNow;
             var band = AiTelemetryNames.ConfidenceBands.FromConfidence(metadata.ConfidenceScore ?? 0f);
             _telemetry.RecordOverrideDecision(band, wasOverridden);
         }
 
-        if (_aiConfig.Features.EnableEmbeddings)
+        await _publishEndpoint.Publish(
+            new TodoUpdated(
+                todoTask.ExternalId,
+                todoTask.CreatedByUserId,
+                textChanged,
+                DateTime.UtcNow),
+            cancellationToken);
+
+        await _write.SaveChangesAsync(cancellationToken);
+
+        if (textChanged && (_aiConfig.Features.EnableEmbeddings || _aiConfig.Features.EnableClassification))
         {
-            await _embeddingQueue.EnqueueAsync(todoTask.ExternalId, cancellationToken);
-            _logger.LogInformation("Queued background embedding refresh for todo {TodoExternalId}", todoTask.ExternalId);
+            _logger.LogInformation(
+                "Published TodoUpdated (text changed) for todo {TodoExternalId}",
+                todoTask.ExternalId);
         }
 
         // Map from in-memory tracked entity — no post-mutate re-query (Phase 1 D4).
