@@ -26,7 +26,7 @@ var masterConfig = new MasterConfig
     AzureConfig = builder.Configuration.GetSection("Azure").Get<AzureConfig>() ?? new AzureConfig()
 };
 
-builder.Services.AddServiceLayer(masterConfig);
+builder.Services.AddServiceLayer(masterConfig, ServiceLayerHostOptions.None);
 builder.Services.RemoveAll<IClassificationNotifier>();
 builder.Services.AddSingleton<IClassificationNotifier, BusClassificationNotifier>();
 

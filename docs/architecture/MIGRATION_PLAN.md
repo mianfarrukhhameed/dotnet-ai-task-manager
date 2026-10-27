@@ -4,9 +4,9 @@
 > **Rule:** design all phases here first; implement only via small PRs, one phase (or phase slice) at a time.  
 > **Do not** extract microservices before Phases 1–3 land in the monolith.
 
-**Status:** Phase 4 in progress (`arch/phase-4-notification-service`) — YARP + AiWorker + Notification (classification hub); Knowledge/Jobs/Todo extracts pending  
+**Status:** Phase 4 largely complete (`arch/phase-4-services`) — YARP + AiWorker + Notification + Knowledge/AiJobs/Todo hosts (shared MainDb); per-service DBs deferred  
 **Solution:** `src/TaskManager.sln`  
-**Current shape:** Clients → YARP → WebApi / Notification; AiWorker classify/embed; typed `TodoClassificationUpdated` choreography
+**Current shape:** Clients → YARP → microservices; AiWorker classify/embed; Notification owns progress hubs; voice hub remains on WebApi
 
 ---
 
@@ -332,14 +332,15 @@ Services / AI Worker ──MassTransit/RabbitMQ──► each other + Notificati
 
 ### Design checklist
 
-- [ ] Aspire: YARP project + per-service projects + RabbitMQ + per-service Postgres (as extracted)
-- [ ] Strangler routes: `/**` → legacy WebApi, then carve path prefixes to new services
-- [ ] Move hubs from WebApi → Notification; wire progress via bus
-- [ ] Extract AI Worker; remove classify/embed consumers from WebApi
-- [ ] Knowledge service + DB + migrations; update WebApp paths via gateway
-- [ ] AiJobs service; Todo remains until later
+- [x] Aspire: YARP + per-service projects + RabbitMQ *(per-service Postgres deferred; shared MainDb)*
+- [x] Strangler routes: path prefixes → Knowledge / AiJobs / Todo / Notification; residual → WebApi
+- [x] Move progress hubs from WebApi → Notification; wire via bus *(voice hub stays on WebApi)*
+- [x] Extract AI Worker; remove classify/embed consumers from WebApi
+- [x] Knowledge service host *(shared MainDb; dedicated DB later)*
+- [x] AiJobs service host *(shared MainDb)*
+- [x] Todo service host *(shared MainDb; WebApi shrunk to voice)*
 - [ ] Introduce `/bff/web` routes only when a screen needs aggregation
-- [ ] Shared `Contracts` (+ ViewModel strategy per service or shared package)
+- [x] Shared `Contracts` + `ApiHost.Shared`
 
 ### PR slices (draft)
 
@@ -355,12 +356,12 @@ Services / AI Worker ──MassTransit/RabbitMQ──► each other + Notificati
 
 ### Success criteria
 
-- [ ] Clients reach the system only via YARP (plus optional `/bff/web`)
-- [ ] Domain data owned by service DBs; gateway/BFF have no domain DB
-- [ ] JWT enforced at gateway and on each HTTP service
-- [ ] All SignalR traffic served by Notification service
-- [ ] Cross-service side effects use the bus, not sync chains through the gateway
-- [ ] AI Worker runs classify/embed outside WebApi
+- [x] Clients reach the system only via YARP (plus optional `/bff/web`)
+- [ ] Domain data owned by service DBs; gateway/BFF have no domain DB *(shared MainDb interim; D44 pending)*
+- [x] JWT enforced on each HTTP service *(gateway forwards; services validate)*
+- [x] Progress SignalR served by Notification *(voice hub still on WebApi)*
+- [x] Cross-service side effects use the bus, not sync chains through the gateway
+- [x] AI Worker runs classify/embed outside WebApi
 
 ### Open questions (Phase 4)
 

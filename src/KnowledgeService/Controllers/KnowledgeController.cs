@@ -10,7 +10,7 @@ using Fistix.TaskManager.Core.SecurityModel;
 using Fistix.TaskManager.ViewModel.Commands.Knowledge;
 using Fistix.TaskManager.ViewModel.Dtos;
 using Fistix.TaskManager.ViewModel.Queries.Knowledge;
-using Fistix.TaskManager.WebApi.Extensions;
+using Fistix.TaskManager.Core.SecurityModel;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -18,7 +18,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 
-namespace Fistix.TaskManager.WebApi.Controllers;
+namespace Fistix.TaskManager.KnowledgeService.Controllers;
 
 [ApiController]
 [Route("api/ai/knowledge")]
@@ -97,7 +97,7 @@ public class KnowledgeController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading knowledge document");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to upload document");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to upload document");
         }
     }
 
@@ -123,7 +123,7 @@ public class KnowledgeController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error listing knowledge documents");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to list documents");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to list documents");
         }
     }
 
@@ -154,7 +154,7 @@ public class KnowledgeController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading knowledge document {DocumentId}", id);
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to load document");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to load document");
         }
     }
 
@@ -185,7 +185,7 @@ public class KnowledgeController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error listing chunks for {DocumentId}", id);
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to list chunks");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to list chunks");
         }
     }
 
@@ -216,7 +216,7 @@ public class KnowledgeController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting knowledge document {DocumentId}", id);
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to delete document");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to delete document");
         }
     }
 
@@ -247,7 +247,7 @@ public class KnowledgeController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading ingest job {JobId}", jobId);
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to load ingest job");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to load ingest job");
         }
     }
 
@@ -286,7 +286,7 @@ public class KnowledgeController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error running knowledge RAG query");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to answer question");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to answer question");
         }
     }
 

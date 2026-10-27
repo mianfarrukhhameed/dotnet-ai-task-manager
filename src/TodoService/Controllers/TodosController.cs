@@ -2,7 +2,7 @@
 using Fistix.TaskManager.ViewModel.Commands.Todos;
 using Fistix.TaskManager.ViewModel.Dtos;
 using Fistix.TaskManager.ViewModel.Queries.Todos;
-using Fistix.TaskManager.WebApi.Extensions;
+
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -13,7 +13,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Fistix.TaskManager.WebApi.Controllers
+namespace Fistix.TaskManager.TodoService.Controllers
 {
   [Route("api/[controller]")]
   [ApiController]
@@ -64,7 +64,7 @@ namespace Fistix.TaskManager.WebApi.Controllers
       catch (Exception ex)
       {
         _logger.LogError(ex, "Error creating todo task");
-        return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to create task");
+        return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to create task");
       }
     }
 
@@ -117,7 +117,7 @@ namespace Fistix.TaskManager.WebApi.Controllers
       catch (Exception ex)
       {
         _logger.LogError(ex, "Error updating todo task {ExternalId}", externalId);
-        return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to update task");
+        return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to update task");
       }
     }
 
@@ -162,7 +162,7 @@ namespace Fistix.TaskManager.WebApi.Controllers
       catch (Exception ex)
       {
         _logger.LogError(ex, "Error importing todos from CSV");
-        return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to import CSV");
+        return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to import CSV");
       }
     }
 
@@ -183,7 +183,7 @@ namespace Fistix.TaskManager.WebApi.Controllers
       catch (Exception ex)
       {
         _logger.LogError(ex, "Error listing todo import batches");
-        return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to list imports");
+        return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to list imports");
       }
     }
 
@@ -210,7 +210,7 @@ namespace Fistix.TaskManager.WebApi.Controllers
       catch (Exception ex)
       {
         _logger.LogError(ex, "Error deleting imported todos for tag {ImportTag}", importTag);
-        return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to delete imported todos");
+        return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to delete imported todos");
       }
     }
   }

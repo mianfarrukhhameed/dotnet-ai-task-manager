@@ -55,7 +55,8 @@ builder.Services.AddControllers(options =>
 .AddFluentValidation(x => x.RegisterValidatorsFromAssemblyContaining<CreateTodoTaskCommandValidator>());
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddServiceLayer(masterConfig);
+// Domain workers moved to Knowledge/AiJobs/Todo services (Phase 4).
+builder.Services.AddServiceLayer(masterConfig, ServiceLayerHostOptions.None);
 builder.Services.AddTaskManagerMessaging(builder.Configuration);
 builder.Services.AddCommonServices(masterConfig, builder.Environment.IsDevelopment());
 builder.Services.AddAiServices(builder.Configuration);
@@ -87,10 +88,7 @@ app.UseRouting();
 app.UseCommonService(masterConfig, app.Environment);
 
 app.MapControllers();
-// ClassificationHub moved to NotificationService (Phase 4); other hubs remain until extracted.
-app.MapHub<AiBatchHub>(AiBatchHub.HubPath);
-app.MapHub<SprintOptimizerHub>(SprintOptimizerHub.HubPath);
+// Progress hubs → NotificationService; voice STT remains here.
 app.MapHub<VoiceTranscribeHub>(VoiceTranscribeHub.HubPath);
-app.MapHub<KnowledgeIngestHub>(KnowledgeIngestHub.HubPath);
 
 await app.RunAsync();

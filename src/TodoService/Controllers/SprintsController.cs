@@ -3,7 +3,7 @@
 using Fistix.TaskManager.Core.Exceptions;
 using Fistix.TaskManager.ViewModel.Dtos;
 using Fistix.TaskManager.ViewModel.Queries.Todos;
-using Fistix.TaskManager.WebApi.Extensions;
+
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -13,7 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Fistix.TaskManager.WebApi.Controllers;
+namespace Fistix.TaskManager.TodoService.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -46,7 +46,7 @@ public class SprintsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error listing sprints");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to list sprints");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to list sprints");
         }
     }
 
@@ -72,7 +72,7 @@ public class SprintsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading sprint {SprintExternalId}", externalId);
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to load sprint");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to load sprint");
         }
     }
 }

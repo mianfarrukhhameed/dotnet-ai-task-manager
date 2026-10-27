@@ -4,7 +4,6 @@ using Fistix.TaskManager.AiLayer.Shared;
 using Fistix.TaskManager.ViewModel.Commands.Todos;
 using Fistix.TaskManager.ViewModel.Dtos;
 using Fistix.TaskManager.ViewModel.Queries.Todos;
-using Fistix.TaskManager.WebApi.Extensions;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -15,7 +14,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
 
-namespace Fistix.TaskManager.WebApi.Controllers;
+namespace Fistix.TaskManager.TodoService.Controllers;
 
 /// <summary>
 /// API endpoints for AI features (summarization, classification, etc).
@@ -81,10 +80,9 @@ public class AiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating summary for todo {TodoExternalId}", command.TodoExternalId);
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to generate summary");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to generate summary");
         }
     }
-
     /// <summary>
     /// Reads current classification status from stored metadata (no LLM call).
     /// </summary>
@@ -103,7 +101,6 @@ public class AiController : ControllerBase
             return Forbid();
         }
     }
-
     /// <summary>
     /// Runs or retries AI classification (rate-limited). Use GET for status polling.
     /// </summary>
@@ -151,10 +148,9 @@ public class AiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error classifying todo {TodoExternalId}", command.TodoExternalId);
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to classify task priority");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to classify task priority");
         }
     }
-
     /// <summary>
     /// Applies the AI-suggested priority to the task.
     /// </summary>
@@ -195,10 +191,9 @@ public class AiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error applying AI priority for todo {TodoExternalId}", command.TodoExternalId);
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to apply AI priority");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to apply AI priority");
         }
     }
-
     /// <summary>
     /// Finds todos by semantic similarity to a natural-language query.
     /// </summary>
@@ -242,10 +237,9 @@ public class AiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error running semantic search");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to run semantic search");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to run semantic search");
         }
     }
-
     /// <summary>
     /// Answers a natural-language question about the user's tasks using RAG.
     /// </summary>
@@ -288,10 +282,9 @@ public class AiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error running AI query");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to answer AI query");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to answer AI query");
         }
     }
-
     /// <summary>
     /// Proposes tool calls from a natural-language prompt (does not execute).
     /// </summary>
@@ -334,10 +327,9 @@ public class AiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error proposing AI tools");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to propose AI tools");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to propose AI tools");
         }
     }
-
     /// <summary>
     /// Client capture options for hold-to-talk (WebM + Web Speech vs local PCM captions).
     /// </summary>
@@ -348,7 +340,6 @@ public class AiController : ControllerBase
         var result = await _mediator.Send(new GetVoiceTranscriptionOptionsQuery());
         return Ok(result.Payload);
     }
-
     /// <summary>
     /// Transcribes push-to-talk audio via local STT (does not create todos).
     /// </summary>
@@ -436,10 +427,9 @@ public class AiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error transcribing audio");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to transcribe audio");
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to transcribe audio");
         }
     }
-
     /// <summary>
     /// Executes user-confirmed AI tool calls.
     /// </summary>
@@ -482,330 +472,7 @@ public class AiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error executing AI tools");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to execute AI tools");
-        }
-    }
-
-    /// <summary>
-    /// Starts an async sprint optimizer job. Progress is pushed over SignalR; poll get/active for status.
-    /// </summary>
-    [HttpPost("agent/sprint-optimizer")]
-    [EnableRateLimiting(RateLimitPolicies.AiAgents)]
-    [ProducesResponseType(typeof(SprintOptimizerJobDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<SprintOptimizerJobDto>> OptimizeSprint(
-        [FromBody] OptimizeSprintCommand command)
-    {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        try
-        {
-            var result = await _mediator.Send(command);
-            return Ok(result.Payload);
-        }
-        catch (FeatureDisabledException ex)
-        {
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
-            {
-                Title = "AI sprint optimizer is unavailable",
-                Detail = ex.Message,
-                Status = StatusCodes.Status503ServiceUnavailable
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new ProblemDetails { Title = "Cannot start sprint optimizer", Detail = ex.Message });
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error starting sprint optimizer agent");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to start sprint optimizer");
-        }
-    }
-
-    [HttpGet("agent/sprint-optimizer/active")]
-    [ProducesResponseType(typeof(SprintOptimizerJobDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<ActionResult<SprintOptimizerJobDto>> GetActiveSprintOptimizer()
-    {
-        try
-        {
-            var result = await _mediator.Send(new GetActiveSprintOptimizerJobQuery());
-            if (result.Payload is null)
-            {
-                return NoContent();
-            }
-
-            return Ok(result.Payload);
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-    }
-
-    [HttpGet("agent/sprint-optimizer/{jobExternalId:guid}")]
-    [ProducesResponseType(typeof(SprintOptimizerJobDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<SprintOptimizerJobDto>> GetSprintOptimizer(Guid jobExternalId)
-    {
-        try
-        {
-            var result = await _mediator.Send(new GetSprintOptimizerJobQuery { JobExternalId = jobExternalId });
-            return Ok(result.Payload);
-        }
-        catch (NotFoundException)
-        {
-            return NotFound();
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-    }
-
-    [HttpPost("agent/sprint-optimizer/{jobExternalId:guid}/cancel")]
-    [ProducesResponseType(typeof(SprintOptimizerJobDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<SprintOptimizerJobDto>> CancelSprintOptimizer(Guid jobExternalId)
-    {
-        try
-        {
-            var result = await _mediator.Send(new CancelSprintOptimizerJobCommand { JobExternalId = jobExternalId });
-            return Ok(result.Payload);
-        }
-        catch (NotFoundException)
-        {
-            return NotFound();
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-    }
-
-    [HttpPost("agent/sprint-optimizer/{jobExternalId:guid}/approve")]
-    [EnableRateLimiting(RateLimitPolicies.AiAgents)]
-    [ProducesResponseType(typeof(SprintOptimizerJobDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<SprintOptimizerJobDto>> ApproveSprintOptimizerProposal(
-        Guid jobExternalId,
-        [FromBody] ApproveSprintOptimizerProposalCommand command)
-    {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        command.JobExternalId = jobExternalId;
-
-        try
-        {
-            var result = await _mediator.Send(command);
-            return Ok(result.Payload);
-        }
-        catch (NotFoundException)
-        {
-            return NotFound();
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new ProblemDetails { Title = "Cannot approve sprint proposal", Detail = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error approving sprint optimizer proposal {JobId}", jobExternalId);
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to approve sprint proposal");
-        }
-    }
-
-    [HttpPost("agent/sprint-optimizer/{jobExternalId:guid}/reject")]
-    [EnableRateLimiting(RateLimitPolicies.AiAgents)]
-    [ProducesResponseType(typeof(SprintOptimizerJobDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<SprintOptimizerJobDto>> RejectSprintOptimizerProposal(Guid jobExternalId)
-    {
-        try
-        {
-            var result = await _mediator.Send(new RejectSprintOptimizerProposalCommand { JobExternalId = jobExternalId });
-            return Ok(result.Payload);
-        }
-        catch (NotFoundException)
-        {
-            return NotFound();
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new ProblemDetails { Title = "Cannot reject sprint proposal", Detail = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error rejecting sprint optimizer proposal {JobId}", jobExternalId);
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to reject sprint proposal");
-        }
-    }
-
-    /// <summary>
-    /// Starts a durable AI batch job (embedding → classify → summarize) with pause/continue/cancel.
-    /// </summary>
-    [HttpPost("batch")]
-    [ProducesResponseType(typeof(AiBatchJobDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<AiBatchJobDto>> StartBatch([FromBody] StartAiBatchJobCommand command)
-    {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        try
-        {
-            var result = await _mediator.Send(command);
-            return Ok(result.Payload);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new ProblemDetails { Title = "Cannot start batch job", Detail = ex.Message });
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error starting AI batch job");
-            return ApiErrorResponses.UnexpectedError(HttpContext, "Failed to start AI batch job");
-        }
-    }
-
-    [HttpGet("batch/active")]
-    [ProducesResponseType(typeof(AiBatchJobDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<ActionResult<AiBatchJobDto>> GetActiveBatch()
-    {
-        try
-        {
-            var result = await _mediator.Send(new GetActiveAiBatchJobQuery());
-            if (result.Payload is null)
-            {
-                return NoContent();
-            }
-
-            return Ok(result.Payload);
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-    }
-
-    [HttpGet("batch/{jobExternalId:guid}")]
-    [ProducesResponseType(typeof(AiBatchJobDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<AiBatchJobDto>> GetBatch(Guid jobExternalId)
-    {
-        try
-        {
-            var result = await _mediator.Send(new GetAiBatchJobQuery { JobExternalId = jobExternalId });
-            return Ok(result.Payload);
-        }
-        catch (NotFoundException)
-        {
-            return NotFound();
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-    }
-
-    [HttpPost("batch/{jobExternalId:guid}/pause")]
-    [ProducesResponseType(typeof(AiBatchJobDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<AiBatchJobDto>> PauseBatch(Guid jobExternalId)
-    {
-        try
-        {
-            var result = await _mediator.Send(new PauseAiBatchJobCommand { JobExternalId = jobExternalId });
-            return Ok(result.Payload);
-        }
-        catch (NotFoundException)
-        {
-            return NotFound();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-    }
-
-    [HttpPost("batch/{jobExternalId:guid}/continue")]
-    [ProducesResponseType(typeof(AiBatchJobDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<AiBatchJobDto>> ContinueBatch(Guid jobExternalId)
-    {
-        try
-        {
-            var result = await _mediator.Send(new ContinueAiBatchJobCommand { JobExternalId = jobExternalId });
-            return Ok(result.Payload);
-        }
-        catch (NotFoundException)
-        {
-            return NotFound();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
-        }
-    }
-
-    [HttpPost("batch/{jobExternalId:guid}/cancel")]
-    [ProducesResponseType(typeof(AiBatchJobDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<AiBatchJobDto>> CancelBatch(Guid jobExternalId)
-    {
-        try
-        {
-            var result = await _mediator.Send(new CancelAiBatchJobCommand { JobExternalId = jobExternalId });
-            return Ok(result.Payload);
-        }
-        catch (NotFoundException)
-        {
-            return NotFound();
-        }
-        catch (ForbiddenAccessException)
-        {
-            return Forbid();
+            return Fistix.TaskManager.ApiHost.Shared.Extensions.ApiErrorResponses.UnexpectedError(HttpContext, "Failed to execute AI tools");
         }
     }
 }

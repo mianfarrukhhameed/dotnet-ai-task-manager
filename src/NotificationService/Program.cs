@@ -10,6 +10,17 @@ builder.AddServiceDefaults();
 
 var authority = builder.Configuration["Auth0:Authority"];
 var audience = builder.Configuration["Auth0:Audience"];
+var corsOrigins = builder.Configuration["App:CorsOrigins"]
+    ?? "https://localhost:5002";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("webapp", policy =>
+        policy.WithOrigins(corsOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials());
+});
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -43,6 +54,9 @@ builder.Services.AddSignalR();
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<TodoClassificationUpdatedConsumer>();
+    x.AddConsumer<AiBatchJobUpdatedConsumer>();
+    x.AddConsumer<SprintOptimizerJobUpdatedConsumer>();
+    x.AddConsumer<KnowledgeIngestUpdatedConsumer>();
     x.SetKebabCaseEndpointNameFormatter();
     x.UsingRabbitMq((context, cfg) =>
     {
@@ -57,8 +71,12 @@ builder.Services.AddMassTransit(x =>
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
+app.UseCors("webapp");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapHub<ClassificationHub>(ClassificationHub.HubPath);
+app.MapHub<AiBatchHub>(AiBatchHub.HubPath);
+app.MapHub<SprintOptimizerHub>(SprintOptimizerHub.HubPath);
+app.MapHub<KnowledgeIngestHub>(KnowledgeIngestHub.HubPath);
 
 await app.RunAsync();

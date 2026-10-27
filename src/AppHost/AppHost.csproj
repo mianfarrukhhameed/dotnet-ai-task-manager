@@ -19,6 +19,9 @@
     <ProjectReference Include="..\WebApp\WebApp.csproj" />
     <ProjectReference Include="..\AiWorker\AiWorker.csproj" />
     <ProjectReference Include="..\NotificationService\NotificationService.csproj" />
+    <ProjectReference Include="..\KnowledgeService\KnowledgeService.csproj" />
+    <ProjectReference Include="..\AiJobsService\AiJobsService.csproj" />
+    <ProjectReference Include="..\TodoService\TodoService.csproj" />
   </ItemGroup>
 
 </Project>
