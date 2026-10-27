@@ -4,9 +4,9 @@
 > **Rule:** design all phases here first; implement only via small PRs, one phase (or phase slice) at a time.  
 > **Do not** extract microservices before Phases 1–3 land in the monolith.
 
-**Status:** Phase 2 done (`arch/phase-2-outbox-events`); Phase 1 done on `arch/phase-1-cqrs-db-split`  
+**Status:** Phase 3 done (`arch/phase-3-replica-docs`); Phase 2 on `arch/phase-2-outbox-events`  
 **Solution:** `src/TaskManager.sln`  
-**Current shape:** Logical CQRS (MediatR) + dual EF contexts + MassTransit EF outbox → RabbitMQ; classify/embed consumers in WebApi
+**Current shape:** Dual EF contexts + MassTransit outbox/RabbitMQ; Phase 3 = same-schema replica reads (no custom projections)
 
 ---
 
@@ -254,9 +254,9 @@ MassTransit events still drive classify/embed (Phase 2), not list/search project
 
 ### Design checklist
 
-- [ ] Document read = replica same-schema in `SOLUTION_OVERVIEW.md` when Phase 1 replica is live
-- [ ] Confirm search/RAG/knowledge reads use `ReadEfContext` (Phase 1) — no projector required
-- [ ] *(Revise later)* If adding a projector: idempotency keys, rebuild/catch-up, where tables live
+- [x] Document read = replica same-schema in `SOLUTION_OVERVIEW.md` (fallback until Aspire replica recipe lands)
+- [x] Confirm search/RAG/knowledge reads use `ReadEfContext` (Phase 1) — no projector required
+- [x] *(Revise later)* If adding a projector: idempotency keys, rebuild/catch-up, where tables live — tracked under **Decisions to revise later**
 
 ### PR slices (draft)
 
@@ -267,13 +267,13 @@ MassTransit events still drive classify/embed (Phase 2), not list/search project
 
 ### Success criteria
 
-- [ ] No denormalized projection tables added for Phase 3
-- [ ] Read path remains same-schema via read connection / replica
-- [ ] Custom projection explicitly deferred in decision log + revise-later section
+- [x] No denormalized projection tables added for Phase 3
+- [x] Read path remains same-schema via read connection / replica
+- [x] Custom projection explicitly deferred in decision log + revise-later section
 
 ### Open questions (Phase 3)
 
-- [ ] Knowledge Lab: stay write-owned (replicated) until Phase 4 extract — **default yes with D34**; confirm when planning Phase 4 Knowledge service
+- [x] Knowledge Lab: stay write-owned (replicated) until Phase 4 extract — **confirmed** (D34); peel with Knowledge service in Phase 4
 
 ---
 
