@@ -31,7 +31,7 @@ public class GetSprintsQueryHandler : IRequestHandler<GetSprintsQuery, GetSprint
 
         return new GetSprintsQueryResult
         {
-            Payload = sprints.Select(CreateSprintCommandHandler.MapSprint).ToList()
+            Payload = sprints.Select(s => CreateSprintCommandHandler.MapSprint(s)).ToList()
         };
     }
 }
