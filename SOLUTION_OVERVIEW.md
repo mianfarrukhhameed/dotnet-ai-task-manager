@@ -66,7 +66,9 @@ Typical path: **WebApp JWT → controller → MediatR → ServiceLayer handler �
 
 **Phase 3 read models:** Streaming replica / same schema is enough — list, get, search, and RAG keep using `ReadEfContext` against `MainDbRead` (or primary fallback). **No** denormalized projection tables; custom projectors remain under “Decisions to revise later.”
 
-**Phase 4 (mostly done):** Aspire **YARP** routes `/hubs/*` progress → `notifications`; `/api/ai/knowledge/**` → `knowledge`; `/api/ai/batch/**` + sprint-optimizer → `aijobs`; `/api/todos|sprints|ai/**` → `todo`; residual (voice hub) → `webapi`. **AiWorker** classify/embed. Shared `MainDb` for now (D44 per-service DB later). See [`docs/architecture/MIGRATION_PLAN.md`](docs/architecture/MIGRATION_PLAN.md).
+**Phase 4 (mostly done):** Aspire **YARP** routes `/hubs/*` progress → `notifications`; `/api/ai/knowledge/**` → `knowledge`; `/api/ai/batch/**` + sprint-optimizer → `aijobs`; `/api/todos|sprints|ai/**` → `todo`; residual (voice hub) → `webapi`. **AiWorker** classify/embed. Shared `MainDb` for now (D44 per-service DB later).
+
+**Phase 5:** Cross-service choreography (classify/embed/notify). Optional **sprint-approve MassTransit saga** on AiJobs (`SprintApproveState` EF store) → Todo `CreateSprintFromProposal` → finalize + `SprintApprovalNotify`. Flag: `Ai:Features:EnableSprintApproveSaga` (sync approve fallback when off). See [`docs/architecture/MIGRATION_PLAN.md`](docs/architecture/MIGRATION_PLAN.md).
 
 Controllers stay thin: validate `ModelState` → `_mediator.Send(...)` → map domain exceptions to `ProblemDetails`. Use `ControllerBase` only — **no minimal APIs**.
 

@@ -49,7 +49,9 @@ public static class MicroserviceHostExtensions
         IConfiguration configuration,
         ServiceLayerHostOptions workers,
         bool enableBusOutbox,
-        bool enableBusNotifiers)
+        bool enableBusNotifiers,
+        Action<IBusRegistrationConfigurator>? configureBus = null,
+        bool enableDelayedMessageScheduler = false)
     {
         services.AddSingleton(masterConfig);
         services.AddHttpContextAccessor();
@@ -84,7 +86,7 @@ public static class MicroserviceHostExtensions
         services.AddServiceLayer(masterConfig, workers);
         services.AddAiCoreServices(configuration);
 
-        if (enableBusOutbox || enableBusNotifiers)
+        if (enableBusOutbox || enableBusNotifiers || configureBus != null)
         {
             services.AddMassTransit(x =>
             {
@@ -98,6 +100,13 @@ public static class MicroserviceHostExtensions
                     });
                 }
 
+                if (enableDelayedMessageScheduler)
+                {
+                    x.AddDelayedMessageScheduler();
+                }
+
+                configureBus?.Invoke(x);
+
                 x.SetKebabCaseEndpointNameFormatter();
                 x.UsingRabbitMq((context, cfg) =>
                 {
@@ -105,6 +114,11 @@ public static class MicroserviceHostExtensions
                         ?? configuration.GetConnectionString("RabbitMQ")
                         ?? "amqp://guest:guest@localhost:5672";
                     cfg.Host(cs);
+                    if (enableDelayedMessageScheduler)
+                    {
+                        cfg.UseDelayedMessageScheduler();
+                    }
+
                     cfg.ConfigureEndpoints(context);
                 });
             });

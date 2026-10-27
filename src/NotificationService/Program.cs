@@ -56,6 +56,7 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<TodoClassificationUpdatedConsumer>();
     x.AddConsumer<AiBatchJobUpdatedConsumer>();
     x.AddConsumer<SprintOptimizerJobUpdatedConsumer>();
+    x.AddConsumer<SprintApprovalNotifyConsumer>();
     x.AddConsumer<KnowledgeIngestUpdatedConsumer>();
     x.SetKebabCaseEndpointNameFormatter();
     x.UsingRabbitMq((context, cfg) =>

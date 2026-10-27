@@ -4,9 +4,9 @@
 > **Rule:** design all phases here first; implement only via small PRs, one phase (or phase slice) at a time.  
 > **Do not** extract microservices before Phases 1–3 land in the monolith.
 
-**Status:** Phase 4 largely complete (`arch/phase-4-services`) — YARP + AiWorker + Notification + Knowledge/AiJobs/Todo hosts (shared MainDb); per-service DBs deferred  
+**Status:** Phase 5 largely complete (`arch/phase-5-choreography`) — choreography + optional sprint-approve MassTransit saga; Phase 4 hosts remain (shared MainDb; per-service DBs deferred)  
 **Solution:** `src/TaskManager.sln`  
-**Current shape:** Clients → YARP → microservices; AiWorker classify/embed; Notification owns progress hubs; voice hub remains on WebApi
+**Current shape:** Clients → YARP → microservices; AiWorker classify/embed; Notification owns progress hubs; voice hub on WebApi; sprint-approve saga (flag `Ai:Features:EnableSprintApproveSaga`)
 
 ---
 
@@ -445,12 +445,12 @@ Compensation policy (delete sprint vs fail-forward) can be chosen at implementat
 ### Design checklist
 
 - [x] Add typed notify events to `Contracts` (catalog above; exact names at PR)
-- [x] Notification consumers: typed event → SignalR hub/method *(classification path live; other hubs pending)*
+- [x] Notification consumers: typed event → SignalR hub/method *(job/classification/approval notify paths live)*
 - [x] Classify/embed consumers: id-only messages; re-read DB; upsert (idempotent)
-- [ ] Implement sprint-approve saga only after AiJobs + Todo extract (Phase 4)
-- [ ] MassTransit EF saga repository on Postgres (AiJobs DB)
-- [ ] Correlation + idempotent Todo create / Notification
-- [ ] Feature flag or doc note: saga optional vs sync approve fallback
+- [x] Implement sprint-approve saga only after AiJobs + Todo extract (Phase 4)
+- [x] MassTransit EF saga repository on Postgres *(shared MainDb / `SprintApproveState` table; AiJobs hosts saga)*
+- [x] Correlation + idempotent Todo create / Notification
+- [x] Feature flag: `Ai:Features:EnableSprintApproveSaga` (AiJobs appsettings `true`; sync approve fallback when false / no bus)
 - [x] Do **not** add custom projection tables unless revise-later is reopened
 
 ### PR slices (draft)
@@ -464,13 +464,13 @@ Compensation policy (delete sprint vs fail-forward) can be chosen at implementat
 
 ### Success criteria
 
-- [ ] Cross-service side effects use choreography by default
-- [ ] No sagas except optional sprint-approve
-- [ ] In-service jobs remain the source of truth for ingest/batch/optimizer run
-- [ ] Notify path uses typed contracts → Notification → SignalR
-- [ ] AI consumers safe under duplicate/out-of-order delivery without `ContentVersion`
-- [ ] If saga demo ships: EF/Postgres saga state; approve survives wait for `SprintCreated` / timeout
-- [ ] No custom projection tables unless explicitly reopened
+- [x] Cross-service side effects use choreography by default
+- [x] No sagas except optional sprint-approve
+- [x] In-service jobs remain the source of truth for ingest/batch/optimizer run
+- [x] Notify path uses typed contracts → Notification → SignalR
+- [x] AI consumers safe under duplicate/out-of-order delivery without `ContentVersion`
+- [x] Saga demo ships: EF/Postgres saga state; approve waits for `SprintCreated` / timeout / fail
+- [x] No custom projection tables unless explicitly reopened
 
 ### Open questions (Phase 5)
 
@@ -540,12 +540,11 @@ Interim choices that **must be revisited** later. Do not treat these locks as fi
 | 2026-10-27 | 5 | **Notification catalog: typed events** |
 | 2026-10-27 | 5 | **Sprint-approve saga store: Postgres via EF** |
 | 2026-10-27 | 5 | **Custom projections remain deferred** |
+| 2026-10-27 | 5 | **SprintApprove saga shipped** (`arch/phase-5-choreography`): AiJobs state machine + Todo `CreateSprintFromProposal` consumer + `EnableSprintApproveSaga` flag |
 | 2026-10-14 | — | Design all phases before bulk implementation; ship phase-by-phase PRs |
 
 ---
 
 ## Next: implementation
 
-Architecture planning for Phases 1–5 is complete (remaining items are revise-later: Aspire replica recipe, hybrid parallelism, custom projections).
-
-**Start implementation with Phase 1 PR slices** (config + dual DbContext fallback, then in-memory create/update DTOs, then read/write routing). Do not implement Phase 4/5 until Phases 1–2 land unless explicitly scoped.
+Phases 1–5 implemented on architecture branches (shared MainDb interim). Remaining follow-ups: Aspire replica recipe, hybrid parallelism, custom projections (revise-later), D44 per-service DBs, optional Web BFF / voice hub move.

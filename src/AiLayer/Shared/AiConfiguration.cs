@@ -207,6 +207,11 @@ public class AiFeaturesConfiguration
     public AiRateLimitConfiguration VoiceTranscriptionRateLimit { get; set; } = new();
     public bool EnableMcp { get; set; } = false;
 
+    /// <summary>
+    /// When true, sprint-approve uses the MassTransit saga (AiJobs ↔ Todo). When false, in-process persist (sync fallback).
+    /// </summary>
+    public bool EnableSprintApproveSaga { get; set; } = false;
+
     public AiBatchConfiguration Batch { get; set; } = new();
 }
 

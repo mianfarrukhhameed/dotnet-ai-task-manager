@@ -1,4 +1,5 @@
 ﻿using Fistix.TaskManager.Core.DomainModel.Aggregates;
+using Fistix.TaskManager.DataLayer.Sagas;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Pgvector.EntityFrameworkCore;
@@ -24,6 +25,7 @@ namespace Fistix.TaskManager.DataLayer
     public DbSet<KnowledgeChunk> KnowledgeChunks { get; set; }
     public DbSet<KnowledgeChunkEmbedding> KnowledgeChunkEmbeddings { get; set; }
     public DbSet<KnowledgeIngestJob> KnowledgeIngestJobs { get; set; }
+    public DbSet<SprintApproveState> SprintApproveStates { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -50,6 +52,19 @@ namespace Fistix.TaskManager.DataLayer
       KnowledgeChunkModelConfig(modelBuilder);
       KnowledgeChunkEmbeddingModelConfig(modelBuilder);
       KnowledgeIngestJobModelConfig(modelBuilder);
+      SprintApproveStateModelConfig(modelBuilder);
+    }
+
+    private static void SprintApproveStateModelConfig(ModelBuilder modelBuilder)
+    {
+      modelBuilder.Entity<SprintApproveState>(entity =>
+      {
+        entity.ToTable("SprintApproveState");
+        entity.HasKey(x => x.CorrelationId);
+        entity.Property(x => x.CurrentState).HasMaxLength(64).IsRequired();
+        entity.Property(x => x.LastError).HasMaxLength(2000);
+        entity.HasIndex(x => x.CurrentState);
+      });
     }
 
     private void TodoTaskModelConfig(ModelBuilder modelBuilder)

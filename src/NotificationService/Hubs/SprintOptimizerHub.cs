@@ -8,6 +8,7 @@ public class SprintOptimizerHub : Hub
 {
     public const string HubPath = "/hubs/sprint-optimizer";
     public const string JobUpdatedMethod = "SprintOptimizerUpdated";
+    public const string ApprovalNotifyMethod = "SprintApprovalNotify";
 
     public Task JoinJob(Guid jobExternalId) =>
         Groups.AddToGroupAsync(Context.ConnectionId, GetGroupName(jobExternalId));

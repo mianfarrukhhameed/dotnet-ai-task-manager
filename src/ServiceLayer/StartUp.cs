@@ -34,6 +34,7 @@ namespace Fistix.TaskManager.ServiceLayer
       services.AddScoped<SprintOptimizerWorkflowHost>();
       services.AddScoped<SprintOptimizerAgent>();
       services.AddScoped<SprintOptimizerPersistService>();
+      services.AddScoped<SprintApproveFinalizeService>();
 
       services.AddScoped<IClassificationProcessor, ClassificationProcessor>();
       services.TryAddSingleton<IClassificationNotifier, NullClassificationNotifier>();

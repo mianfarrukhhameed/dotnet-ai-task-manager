@@ -41,6 +41,32 @@ public sealed class SprintOptimizerJobUpdatedConsumer : IConsumer<SprintOptimize
     }
 }
 
+public sealed class SprintApprovalNotifyConsumer : IConsumer<SprintApprovalNotify>
+{
+    private readonly IHubContext<SprintOptimizerHub> _hubContext;
+
+    public SprintApprovalNotifyConsumer(IHubContext<SprintOptimizerHub> hubContext) => _hubContext = hubContext;
+
+    public Task Consume(ConsumeContext<SprintApprovalNotify> context)
+    {
+        var message = context.Message;
+        return _hubContext.Clients
+            .Group(SprintOptimizerHub.GetGroupName(message.JobExternalId))
+            .SendAsync(
+                SprintOptimizerHub.ApprovalNotifyMethod,
+                new
+                {
+                    message.JobExternalId,
+                    message.OwnerUserId,
+                    message.SprintExternalId,
+                    message.Status,
+                    message.Message,
+                    message.OccurredAtUtc
+                },
+                context.CancellationToken);
+    }
+}
+
 public sealed class KnowledgeIngestUpdatedConsumer : IConsumer<KnowledgeIngestUpdated>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);

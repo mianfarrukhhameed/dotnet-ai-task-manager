@@ -728,6 +728,43 @@ namespace Fistix.TaskManager.DataLayer.Migrations
                     b.ToTable("UserProfile", (string)null);
                 });
 
+            modelBuilder.Entity("Fistix.TaskManager.DataLayer.Sagas.SprintApproveState", b =>
+                {
+                    b.Property<Guid>("CorrelationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrentState")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SprintExternalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TimeoutTokenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("CorrelationId");
+
+                    b.HasIndex("CurrentState");
+
+                    b.ToTable("SprintApproveState", (string)null);
+                });
+
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.InboxState", b =>
                 {
                     b.Property<long>("Id")

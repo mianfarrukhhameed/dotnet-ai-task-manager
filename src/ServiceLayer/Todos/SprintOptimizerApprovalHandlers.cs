@@ -2,10 +2,12 @@
 
 using System;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Fistix.TaskManager.AiLayer.Observability;
 using Fistix.TaskManager.AiLayer.Shared;
+using Fistix.TaskManager.Contracts.Sagas;
 using Fistix.TaskManager.Core.Abstractions.Repositories;
 using Fistix.TaskManager.Core.Abstractions.Services;
 using Fistix.TaskManager.Core.DomainModel.Constants;
@@ -14,6 +16,7 @@ using Fistix.TaskManager.Core.SecurityModel;
 using Fistix.TaskManager.ServiceLayer.Notifications;
 using Fistix.TaskManager.ViewModel.Commands.Todos;
 using Fistix.TaskManager.ViewModel.Dtos;
+using MassTransit;
 using MediatR;
 
 namespace Fistix.TaskManager.ServiceLayer.Todos;
@@ -21,12 +24,18 @@ namespace Fistix.TaskManager.ServiceLayer.Todos;
 public sealed class ApproveSprintOptimizerProposalCommandHandler
     : IRequestHandler<ApproveSprintOptimizerProposalCommand, ApproveSprintOptimizerProposalCommandResult>
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly ISprintOptimizerJobRepository _jobRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly ISprintOptimizerNotifier _notifier;
     private readonly SprintOptimizerPersistService _persistService;
     private readonly IAiTelemetry _telemetry;
     private readonly AiConfiguration _aiConfig;
+    private readonly IPublishEndpoint? _publishEndpoint;
 
     public ApproveSprintOptimizerProposalCommandHandler(
         ISprintOptimizerJobRepository jobRepository,
@@ -34,7 +43,8 @@ public sealed class ApproveSprintOptimizerProposalCommandHandler
         ISprintOptimizerNotifier notifier,
         SprintOptimizerPersistService persistService,
         IAiTelemetry? telemetry = null,
-        AiConfiguration? aiConfig = null)
+        AiConfiguration? aiConfig = null,
+        IPublishEndpoint? publishEndpoint = null)
     {
         _jobRepository = jobRepository;
         _currentUserService = currentUserService;
@@ -42,6 +52,7 @@ public sealed class ApproveSprintOptimizerProposalCommandHandler
         _persistService = persistService;
         _telemetry = telemetry ?? NullAiTelemetry.Instance;
         _aiConfig = aiConfig ?? new AiConfiguration();
+        _publishEndpoint = publishEndpoint;
     }
 
     public async Task<ApproveSprintOptimizerProposalCommandResult> Handle(
@@ -116,8 +127,31 @@ public sealed class ApproveSprintOptimizerProposalCommandHandler
         job.CurrentPhase = SprintOptimizerPhase.Persisting;
         job.StatusMessage = "Creating sprint from approved proposal…";
         job.Status = AiBatchJobStatus.Running;
+        job.ProposalJson = SprintOptimizerJobMapper.SerializeProposal(proposal);
         await _jobRepository.UpdateAsync(job, cancellationToken);
         await _notifier.NotifyAsync(SprintOptimizerJobMapper.ToDto(job), cancellationToken);
+
+        if (_aiConfig.Features.EnableSprintApproveSaga && _publishEndpoint is not null)
+        {
+            var selectedIds = selectedTodos.Select(t => t.ExternalId).ToList();
+            await _publishEndpoint.Publish(
+                new SprintApproveRequested(
+                    job.ExternalId,
+                    job.CreatedByUserId,
+                    selectedIds,
+                    proposal.Reasoning,
+                    JsonSerializer.Serialize(proposal.Steps, JsonOptions),
+                    job.Name,
+                    job.DurationDays,
+                    job.MaxTasks,
+                    DateTime.UtcNow),
+                cancellationToken);
+
+            return new ApproveSprintOptimizerProposalCommandResult
+            {
+                Payload = SprintOptimizerJobMapper.ToDto(job)
+            };
+        }
 
         var response = await _persistService.PersistApprovedAsync(
             job,
