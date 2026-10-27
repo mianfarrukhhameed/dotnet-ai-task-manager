@@ -18,6 +18,7 @@
     <ProjectReference Include="..\WebApi\WebApi.csproj" />
     <ProjectReference Include="..\WebApp\WebApp.csproj" />
     <ProjectReference Include="..\AiWorker\AiWorker.csproj" />
+    <ProjectReference Include="..\NotificationService\NotificationService.csproj" />
   </ItemGroup>
 
 </Project>

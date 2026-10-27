@@ -4,9 +4,9 @@
 > **Rule:** design all phases here first; implement only via small PRs, one phase (or phase slice) at a time.  
 > **Do not** extract microservices before Phases 1–3 land in the monolith.
 
-**Status:** Phase 4 in progress (`arch/phase-4-yarp-gateway`) — 4.1 YARP + 4.3 AI Worker landed; Notification/Knowledge/Jobs/Todo extracts pending  
+**Status:** Phase 4 in progress (`arch/phase-4-notification-service`) — YARP + AiWorker + Notification (classification hub); Knowledge/Jobs/Todo extracts pending  
 **Solution:** `src/TaskManager.sln`  
-**Current shape:** Clients → YARP → WebApi; AiWorker consumes classify/embed; dual EF + MassTransit outbox
+**Current shape:** Clients → YARP → WebApi / Notification; AiWorker classify/embed; typed `TodoClassificationUpdated` choreography
 
 ---
 
@@ -443,14 +443,14 @@ Compensation policy (delete sprint vs fail-forward) can be chosen at implementat
 
 ### Design checklist
 
-- [ ] Add typed notify events to `Contracts` (catalog above; exact names at PR)
-- [ ] Notification consumers: typed event → SignalR hub/method
-- [ ] Classify/embed consumers: id-only messages; re-read DB; upsert (idempotent)
+- [x] Add typed notify events to `Contracts` (catalog above; exact names at PR)
+- [x] Notification consumers: typed event → SignalR hub/method *(classification path live; other hubs pending)*
+- [x] Classify/embed consumers: id-only messages; re-read DB; upsert (idempotent)
 - [ ] Implement sprint-approve saga only after AiJobs + Todo extract (Phase 4)
 - [ ] MassTransit EF saga repository on Postgres (AiJobs DB)
 - [ ] Correlation + idempotent Todo create / Notification
 - [ ] Feature flag or doc note: saga optional vs sync approve fallback
-- [ ] Do **not** add custom projection tables unless revise-later is reopened
+- [x] Do **not** add custom projection tables unless revise-later is reopened
 
 ### PR slices (draft)
 

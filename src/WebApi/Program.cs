@@ -87,7 +87,7 @@ app.UseRouting();
 app.UseCommonService(masterConfig, app.Environment);
 
 app.MapControllers();
-app.MapHub<ClassificationHub>(ClassificationHub.HubPath);
+// ClassificationHub moved to NotificationService (Phase 4); other hubs remain until extracted.
 app.MapHub<AiBatchHub>(AiBatchHub.HubPath);
 app.MapHub<SprintOptimizerHub>(SprintOptimizerHub.HubPath);
 app.MapHub<VoiceTranscribeHub>(VoiceTranscribeHub.HubPath);

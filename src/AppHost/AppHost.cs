@@ -35,21 +35,29 @@ var webapi = builder
     .WithEnvironment("Ai__SpeechToText__Endpoint", whisper.GetEndpoint("http"));
 
 // Phase 4.3: AI Worker hosts classify/embed MassTransit consumers.
-var aiWorker = builder
+builder
     .AddProject<Projects.AiWorker>("aiworker")
     .WithReference(mainDb)
     .WithReference(rabbitmq)
     .WaitFor(mainDb)
     .WaitFor(rabbitmq);
 
-// Phase 4.1: YARP API Gateway — catch-all → WebApi (JWT still enforced on WebApi).
+// Phase 4.2: Notification service owns classification SignalR hub (+ more hubs later).
+var notifications = builder
+    .AddProject<Projects.NotificationService>("notifications")
+    .WithReference(rabbitmq)
+    .WaitFor(rabbitmq);
+
+// Phase 4.1: YARP API Gateway — hubs/classification → Notification; everything else → WebApi.
 var gateway = builder
     .AddYarp("gateway")
     .WithConfiguration(yarp =>
     {
+        yarp.AddRoute("/hubs/classification/{**catch-all}", notifications);
         yarp.AddRoute(webapi);
     })
     .WaitFor(webapi)
+    .WaitFor(notifications)
     .WithEndpoint("http", endpoint =>
     {
         endpoint.Port = 5000;

@@ -27,7 +27,8 @@ var masterConfig = new MasterConfig
 };
 
 builder.Services.AddServiceLayer(masterConfig);
-builder.Services.TryAddSingleton<IClassificationNotifier, NullClassificationNotifier>();
+builder.Services.RemoveAll<IClassificationNotifier>();
+builder.Services.AddSingleton<IClassificationNotifier, BusClassificationNotifier>();
 
 builder.Services.AddSingleton(_ =>
 {
