@@ -4,9 +4,9 @@
 > **Rule:** design all phases here first; implement only via small PRs, one phase (or phase slice) at a time.  
 > **Do not** extract microservices before Phases 1–3 land in the monolith.
 
-**Status:** Phase 3 done (`arch/phase-3-replica-docs`); Phase 2 on `arch/phase-2-outbox-events`  
+**Status:** Phase 4 in progress (`arch/phase-4-yarp-gateway`) — 4.1 YARP + 4.3 AI Worker landed; Notification/Knowledge/Jobs/Todo extracts pending  
 **Solution:** `src/TaskManager.sln`  
-**Current shape:** Dual EF contexts + MassTransit outbox/RabbitMQ; Phase 3 = same-schema replica reads (no custom projections)
+**Current shape:** Clients → YARP → WebApi; AiWorker consumes classify/embed; dual EF + MassTransit outbox
 
 ---
 

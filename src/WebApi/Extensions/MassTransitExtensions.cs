@@ -2,7 +2,6 @@
 
 using System;
 using Fistix.TaskManager.DataLayer;
-using Fistix.TaskManager.ServiceLayer.Messaging;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,15 +10,15 @@ namespace Fistix.TaskManager.WebApi.Extensions;
 
 public static class MassTransitExtensions
 {
+    /// <summary>
+    /// WebApi publishes via EF transactional outbox. Classify/embed consumers live in AiWorker (Phase 4).
+    /// </summary>
     public static IServiceCollection AddTaskManagerMessaging(
         this IServiceCollection services,
         IConfiguration configuration)
     {
         services.AddMassTransit(x =>
         {
-            x.AddConsumer<ClassifyTodoConsumer>();
-            x.AddConsumer<EmbedTodoConsumer>();
-
             x.AddEntityFrameworkOutbox<WriteEfContext>(o =>
             {
                 o.QueryDelay = TimeSpan.FromSeconds(1);

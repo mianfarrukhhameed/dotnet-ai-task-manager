@@ -64,7 +64,9 @@ Typical path: **WebApp JWT → controller → MediatR → ServiceLayer handler �
 
 **Phase 2 messaging:** MassTransit + RabbitMQ (Aspire `rabbitmq`); EF transactional outbox on `WriteEfContext`; contracts in `src/Contracts` (`TodoCreated` / `TodoUpdated` / `TodoDeleted`). Classify/embed consumers run in-process in WebApi (worker extract in Phase 4). Update publishes AI side effects only when title/description change.
 
-**Phase 3 read models:** Streaming replica / same schema is enough — list, get, search, and RAG keep using `ReadEfContext` against `MainDbRead` (or primary fallback). **No** denormalized projection tables; custom projectors remain under “Decisions to revise later.” See [`docs/architecture/MIGRATION_PLAN.md`](docs/architecture/MIGRATION_PLAN.md).
+**Phase 3 read models:** Streaming replica / same schema is enough — list, get, search, and RAG keep using `ReadEfContext` against `MainDbRead` (or primary fallback). **No** denormalized projection tables; custom projectors remain under “Decisions to revise later.”
+
+**Phase 4 (in progress):** Aspire **YARP** `gateway` is the public edge (ports 5000/5001) with catch-all → `webapi`. **AiWorker** hosts classify/embed MassTransit consumers (removed from WebApi). Notification service and further domain extracts still pending. See [`docs/architecture/MIGRATION_PLAN.md`](docs/architecture/MIGRATION_PLAN.md).
 
 Controllers stay thin: validate `ModelState` → `_mediator.Send(...)` → map domain exceptions to `ProblemDetails`. Use `ControllerBase` only — **no minimal APIs**.
 

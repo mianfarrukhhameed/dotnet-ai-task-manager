@@ -24,8 +24,7 @@ var whisper = builder
     .WithEnvironment("WHISPER__MODEL", "Systran/faster-whisper-small")
     .WithVolume("taskmanager-aspire-whisper-cache", "/home/ubuntu/.cache/huggingface/hub");
 
-// AddProject already registers http/https endpoints from the project; update ports
-// instead of calling WithHttp(s)Endpoint (those try to create duplicate names on Aspire 13.1).
+// Legacy WebApi stays internal; public clients enter via YARP (Phase 4 strangler).
 var webapi = builder
     .AddProject<Projects.WebApi>("webapi")
     .WithReference(mainDb)
@@ -33,7 +32,24 @@ var webapi = builder
     .WaitFor(mainDb)
     .WaitFor(rabbitmq)
     .WaitFor(whisper)
-    .WithEnvironment("Ai__SpeechToText__Endpoint", whisper.GetEndpoint("http"))
+    .WithEnvironment("Ai__SpeechToText__Endpoint", whisper.GetEndpoint("http"));
+
+// Phase 4.3: AI Worker hosts classify/embed MassTransit consumers.
+var aiWorker = builder
+    .AddProject<Projects.AiWorker>("aiworker")
+    .WithReference(mainDb)
+    .WithReference(rabbitmq)
+    .WaitFor(mainDb)
+    .WaitFor(rabbitmq);
+
+// Phase 4.1: YARP API Gateway — catch-all → WebApi (JWT still enforced on WebApi).
+var gateway = builder
+    .AddYarp("gateway")
+    .WithConfiguration(yarp =>
+    {
+        yarp.AddRoute(webapi);
+    })
+    .WaitFor(webapi)
     .WithEndpoint("http", endpoint =>
     {
         endpoint.Port = 5000;
@@ -52,6 +68,6 @@ builder
         endpoint.Port = 5002;
         endpoint.IsExternal = true;
     })
-    .WaitFor(webapi);
+    .WaitFor(gateway);
 
 builder.Build().Run();

@@ -31,6 +31,7 @@ namespace Fistix.TaskManager.ServiceLayer
       services.AddScoped<SprintOptimizerPersistService>();
 
       services.AddScoped<IClassificationProcessor, ClassificationProcessor>();
+      services.TryAddSingleton<IClassificationNotifier, NullClassificationNotifier>();
       services.AddScoped<IEmbeddingProcessor, EmbeddingProcessor>();
       services.AddScoped<IVectorStore, PgVectorEmbeddingStore>();
       services.AddScoped<ILexicalTodoSearch, PostgresLexicalTodoSearch>();
