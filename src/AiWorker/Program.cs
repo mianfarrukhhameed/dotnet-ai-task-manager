@@ -28,7 +28,8 @@ var masterConfig = new MasterConfig
 
 builder.Services.AddServiceLayer(masterConfig, ServiceLayerHostOptions.None);
 builder.Services.RemoveAll<IClassificationNotifier>();
-builder.Services.AddSingleton<IClassificationNotifier, BusClassificationNotifier>();
+// Scoped: MassTransit IPublishEndpoint is scoped.
+builder.Services.AddScoped<IClassificationNotifier, BusClassificationNotifier>();
 
 builder.Services.AddSingleton(_ =>
 {
