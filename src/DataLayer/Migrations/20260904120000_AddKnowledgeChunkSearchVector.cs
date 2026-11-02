@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Fistix.TaskManager.DataLayer.Migrations
 {
     /// <inheritdoc />
-    [DbContext(typeof(EfContext))]
+    [DbContext(typeof(WriteEfContext))]
     [Migration("20260904120000_AddKnowledgeChunkSearchVector")]
     public partial class AddKnowledgeChunkSearchVector : Migration
     {

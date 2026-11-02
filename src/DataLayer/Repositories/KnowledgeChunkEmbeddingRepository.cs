@@ -15,22 +15,24 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public sealed class KnowledgeChunkEmbeddingRepository : IKnowledgeChunkEmbeddingRepository
 {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _write;
+    private readonly ReadEfContext _read;
 
-    public KnowledgeChunkEmbeddingRepository(EfContext context)
+    public KnowledgeChunkEmbeddingRepository(WriteEfContext write, ReadEfContext read)
     {
-        _context = context;
+        _write = write;
+        _read = read;
     }
 
     public async Task UpsertAsync(int chunkId, float[] embedding, string model, CancellationToken cancellationToken)
     {
         var vector = new Vector(embedding);
-        var existing = await _context.KnowledgeChunkEmbeddings
+        var existing = await _write.KnowledgeChunkEmbeddings
             .FirstOrDefaultAsync(e => e.ChunkId == chunkId && e.EmbeddingModel == model, cancellationToken);
 
         if (existing is null)
         {
-            _context.KnowledgeChunkEmbeddings.Add(new KnowledgeChunkEmbedding
+            _write.KnowledgeChunkEmbeddings.Add(new KnowledgeChunkEmbedding
             {
                 ChunkId = chunkId,
                 Embedding = vector,
@@ -44,7 +46,7 @@ public sealed class KnowledgeChunkEmbeddingRepository : IKnowledgeChunkEmbedding
             existing.UpdatedAt = DateTime.UtcNow;
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _write.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<KnowledgeChunkSearchHit>> SearchSimilarAsync(
@@ -57,8 +59,7 @@ public sealed class KnowledgeChunkEmbeddingRepository : IKnowledgeChunkEmbedding
         IReadOnlyCollection<Guid>? excludeChunkExternalIds = null)
     {
         var queryVector = new Vector(queryEmbedding);
-        var query = _context.KnowledgeChunkEmbeddings
-            .AsNoTracking()
+        var query = _read.KnowledgeChunkEmbeddings
             .Where(e => e.EmbeddingModel == embeddingModel
                         && e.Chunk != null
                         && e.Chunk.Document != null

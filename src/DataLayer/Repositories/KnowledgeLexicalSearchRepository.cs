@@ -14,9 +14,9 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public sealed class KnowledgeLexicalSearchRepository : IKnowledgeLexicalSearchRepository
 {
-    private readonly EfContext _context;
+    private readonly ReadEfContext _context;
 
-    public KnowledgeLexicalSearchRepository(EfContext context)
+    public KnowledgeLexicalSearchRepository(ReadEfContext context)
     {
         _context = context;
     }

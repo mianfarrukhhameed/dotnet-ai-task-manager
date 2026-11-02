@@ -3,23 +3,27 @@
 namespace Fistix.TaskManager.DataLayer.Repositories
 {
   public class RepositoryFactory : IRepositoryFactory
-  {   
-    private readonly EfContext context;
+  {
+    private readonly WriteEfContext _write;
+    private readonly ReadEfContext _read;
     private ITodoTaskRepository todoTaskRepository;
     private IUserProfileRepository userProfileRepository;
 
-    public RepositoryFactory(EfContext context)
+    public RepositoryFactory(WriteEfContext write, ReadEfContext read)
     {
-      this.context = context;
+      _write = write;
+      _read = read;
     }
 
     public IUserProfileRepository UserProfileRepository
     {
-      get { return userProfileRepository ??= new UserProfileRepository(context); }
+      // Profile lookup is authz-sensitive → write DB (Phase 1 D10).
+      get { return userProfileRepository ??= new UserProfileRepository(_write); }
     }
+
     public ITodoTaskRepository TodoTaskRepository
     {
-      get { return todoTaskRepository ??= new TodoTaskRepository(context); }
+      get { return todoTaskRepository ??= new TodoTaskRepository(_write, _read); }
     }
   }
 }

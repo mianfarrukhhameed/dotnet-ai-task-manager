@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Fistix.TaskManager.DataLayer.Migrations
 {
     /// <inheritdoc />
-    [DbContext(typeof(EfContext))]
+    [DbContext(typeof(WriteEfContext))]
     [Migration("20260807120000_RemoveAiConversationContext")]
     public partial class RemoveAiConversationContext : Migration
     {

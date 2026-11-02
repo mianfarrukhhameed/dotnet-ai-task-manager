@@ -6,12 +6,14 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Fistix.TaskManager.Contracts.Todos;
 using Fistix.TaskManager.Core.Abstractions.Repositories;
 using Fistix.TaskManager.Core.Abstractions.Services;
 using Fistix.TaskManager.Core.DomainModel.Aggregates;
 using Fistix.TaskManager.Core.SecurityModel;
 using Fistix.TaskManager.ViewModel.Commands.Todos;
 using Fistix.TaskManager.ViewModel.Dtos;
+using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -112,13 +114,16 @@ public sealed class DeleteImportedTodosCommandHandler
     : IRequestHandler<DeleteImportedTodosCommand, DeleteImportedTodosCommandResult>
 {
     private readonly ITodoTaskRepository _todoTaskRepository;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly ICurrentUserService _currentUserService;
 
     public DeleteImportedTodosCommandHandler(
         ITodoTaskRepository todoTaskRepository,
+        IPublishEndpoint publishEndpoint,
         ICurrentUserService currentUserService)
     {
         _todoTaskRepository = todoTaskRepository;
+        _publishEndpoint = publishEndpoint;
         _currentUserService = currentUserService;
     }
 
@@ -128,6 +133,17 @@ public sealed class DeleteImportedTodosCommandHandler
     {
         var ownerId = TodoAccessGuard.RequireCurrentUserId(_currentUserService);
         var tag = command.ImportTag.Trim();
+
+        var todos = await _todoTaskRepository.GetByOwnerAndImportTagAsync(ownerId, tag, cancellationToken);
+        var occurredAt = DateTime.UtcNow;
+        foreach (var todo in todos)
+        {
+            // Staged into EF outbox; flushed when DeleteByImportTagAsync SaveChanges runs.
+            await _publishEndpoint.Publish(
+                new TodoDeleted(todo.ExternalId, ownerId, occurredAt),
+                cancellationToken);
+        }
+
         var deleted = await _todoTaskRepository.DeleteByImportTagAsync(ownerId, tag, cancellationToken);
 
         return new DeleteImportedTodosCommandResult

@@ -11,7 +11,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace Fistix.TaskManager.DataLayer.Migrations
 {
-    [DbContext(typeof(EfContext))]
+    [DbContext(typeof(WriteEfContext))]
     [Migration("20260714075134_SeedUserProfiles")]
     partial class SeedUserProfiles
     {

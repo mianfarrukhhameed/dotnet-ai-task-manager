@@ -12,8 +12,15 @@ namespace Fistix.TaskManager.DataLayer
   {
     public static void AddDataLayer(this IServiceCollection services, MasterConfig masterConfig)
     {
-      services.AddDbContext<EfContext>(options =>
-        options.UseNpgsql(masterConfig.ConnectionString.MainDb, o => o.UseVector()));
+      var writeCs = masterConfig.ConnectionString.MainDb;
+      var readCs = masterConfig.ConnectionString.ResolveReadConnectionString();
+
+      services.AddDbContext<WriteEfContext>(options =>
+        options.UseNpgsql(writeCs, o => o.UseVector()));
+
+      services.AddDbContext<ReadEfContext>(options =>
+        options.UseNpgsql(readCs, o => o.UseVector()));
+
       services.AddScoped<ITodoTaskRepository, TodoTaskRepository>();
       services.AddScoped<ITodoAiMetadataRepository, TodoAiMetadataRepository>();
       services.AddScoped<ITodoEmbeddingRepository, TodoEmbeddingRepository>();
@@ -35,7 +42,7 @@ namespace Fistix.TaskManager.DataLayer
     public static void ApplyMigrations(IServiceProvider serviceProvider)
     {
       using var scope = serviceProvider.CreateScope();
-      var context = scope.ServiceProvider.GetRequiredService<EfContext>();
+      var context = scope.ServiceProvider.GetRequiredService<WriteEfContext>();
       context.Database.Migrate();
     }
   }

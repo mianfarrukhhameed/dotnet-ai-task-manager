@@ -9,7 +9,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Fistix.TaskManager.DataLayer.Migrations
 {
     /// <inheritdoc />
-    [DbContext(typeof(EfContext))]
+    [DbContext(typeof(WriteEfContext))]
     [Migration("20260724160000_AddAiBatchJobAndImportTag")]
     public partial class AddAiBatchJobAndImportTag : Migration
     {

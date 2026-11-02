@@ -12,7 +12,7 @@ using Pgvector;
 
 namespace Fistix.TaskManager.DataLayer.Migrations
 {
-    [DbContext(typeof(EfContext))]
+    [DbContext(typeof(WriteEfContext))]
     [Migration("20260713103617_AddTodoEmbeddings")]
     partial class AddTodoEmbeddings
     {

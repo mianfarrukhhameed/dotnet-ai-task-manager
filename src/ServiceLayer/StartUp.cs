@@ -16,8 +16,13 @@ namespace Fistix.TaskManager.ServiceLayer
 {
   public static class StartUp
   {
-    public static void AddServiceLayer(this IServiceCollection services, MasterConfig masterConfig)
+    public static void AddServiceLayer(
+      this IServiceCollection services,
+      MasterConfig masterConfig,
+      ServiceLayerHostOptions? hostOptions = null)
     {
+      var workers = hostOptions ?? ServiceLayerHostOptions.AllWorkers;
+
       services.AddMediatR(typeof(CreateTodoTaskCommand).Assembly, typeof(CreateTodoTaskCommandHandler).Assembly);
 
       services.AddAutoMapper(x=>x.AddProfile<TodoTaskProfileMapping>());
@@ -29,29 +34,39 @@ namespace Fistix.TaskManager.ServiceLayer
       services.AddScoped<SprintOptimizerWorkflowHost>();
       services.AddScoped<SprintOptimizerAgent>();
       services.AddScoped<SprintOptimizerPersistService>();
+      services.AddScoped<SprintApproveFinalizeService>();
 
-      services.AddSingleton<IClassificationQueue, ClassificationQueue>();
       services.AddScoped<IClassificationProcessor, ClassificationProcessor>();
-      services.AddHostedService<ClassificationBackgroundService>();
-
-      services.AddSingleton<IEmbeddingQueue, EmbeddingQueue>();
+      services.TryAddSingleton<IClassificationNotifier, NullClassificationNotifier>();
       services.AddScoped<IEmbeddingProcessor, EmbeddingProcessor>();
       services.AddScoped<IVectorStore, PgVectorEmbeddingStore>();
       services.AddScoped<ILexicalTodoSearch, PostgresLexicalTodoSearch>();
-      services.AddHostedService<EmbeddingBackgroundService>();
+      if (workers.EnableEmbeddingBackfill)
+      {
+        services.AddHostedService<EmbeddingBackfillHostedService>();
+      }
 
       services.AddScoped<IAiBatchStepExecutor, AiBatchStepExecutor>();
-      services.AddHostedService<AiBatchBackgroundService>();
-      // SignalR notifier is registered by WebApi; tests register NullAiBatchNotifier.
+      if (workers.EnableAiBatchWorker)
+      {
+        services.AddHostedService<AiBatchBackgroundService>();
+      }
+      // SignalR/bus notifiers registered by hosts; tests register Null*.
       services.TryAddSingleton<IAiBatchNotifier, NullAiBatchNotifier>();
       services.TryAddSingleton<ISprintOptimizerNotifier, NullSprintOptimizerNotifier>();
       services.TryAddSingleton<IKnowledgeIngestNotifier, NullKnowledgeIngestNotifier>();
       services.AddScoped<IKnowledgeIngestProcessor, KnowledgeIngestProcessor>();
       services.AddScoped<KnowledgeSemanticSearchPipeline>();
       services.AddScoped<KnowledgeQueryRewriter>();
-      services.AddHostedService<KnowledgeIngestBackgroundService>();
+      if (workers.EnableKnowledgeIngestWorker)
+      {
+        services.AddHostedService<KnowledgeIngestBackgroundService>();
+      }
       services.TryAddSingleton<IAiTelemetry>(_ => NullAiTelemetry.Instance);
-      services.AddHostedService<SprintOptimizerBackgroundService>();
+      if (workers.EnableSprintOptimizerWorker)
+      {
+        services.AddHostedService<SprintOptimizerBackgroundService>();
+      }
             
       services.AddDataLayer(masterConfig);
     }

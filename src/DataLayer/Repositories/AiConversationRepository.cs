@@ -9,9 +9,9 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public class AiConversationRepository : IAiConversationRepository
 {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _context;
 
-    public AiConversationRepository(EfContext context)
+    public AiConversationRepository(WriteEfContext context)
     {
         _context = context;
     }

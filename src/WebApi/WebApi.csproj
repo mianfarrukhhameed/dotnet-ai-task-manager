@@ -16,6 +16,8 @@
   
   <ItemGroup>
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
+    <PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.5.5" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.5" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.8.0" />
     <PackageReference Include="Swashbuckle.AspNetCore.Filters" Version="7.0.0" />
     <PackageReference Include="MediatR" Version="11.1.0" />
@@ -40,6 +42,7 @@
     <ProjectReference Include="..\ViewModel\ViewModel.csproj" />
     <ProjectReference Include="..\AiLayer\AiLayer.csproj" />
     <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Contracts\Contracts.csproj" />
   </ItemGroup>
 
 </Project>

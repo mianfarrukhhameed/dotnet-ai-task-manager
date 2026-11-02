@@ -65,7 +65,8 @@ public class ApplyAiPriorityCommandHandler : IRequestHandler<ApplyAiPriorityComm
             AiTelemetryNames.ConfidenceBands.FromConfidence(metadata.ConfidenceScore ?? 0f),
             wasOverridden: false);
 
-        todo = await _todoTaskRepository.Get(command.TodoExternalId, cancellationToken);
+        todo.AiMetadata ??= metadata;
+        metadata.WasOverridden = false;
 
         return new ApplyAiPriorityCommandResult
         {

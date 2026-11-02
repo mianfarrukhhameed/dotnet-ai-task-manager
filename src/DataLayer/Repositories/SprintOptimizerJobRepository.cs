@@ -14,9 +14,9 @@ namespace Fistix.TaskManager.DataLayer.Repositories;
 
 public sealed class SprintOptimizerJobRepository : ISprintOptimizerJobRepository
 {
-    private readonly EfContext _context;
+    private readonly WriteEfContext _context;
 
-    public SprintOptimizerJobRepository(EfContext context)
+    public SprintOptimizerJobRepository(WriteEfContext context)
     {
         _context = context;
     }

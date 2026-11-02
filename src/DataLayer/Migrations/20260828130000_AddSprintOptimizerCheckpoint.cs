@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Fistix.TaskManager.DataLayer.Migrations
 {
     /// <inheritdoc />
-    [DbContext(typeof(EfContext))]
+    [DbContext(typeof(WriteEfContext))]
     [Migration("20260828130000_AddSprintOptimizerCheckpoint")]
     public partial class AddSprintOptimizerCheckpoint : Migration
     {
