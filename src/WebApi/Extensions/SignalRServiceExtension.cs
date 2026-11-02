@@ -14,10 +14,11 @@ public static class SignalRServiceExtension
         services.RemoveAll<IAiBatchNotifier>();
         services.RemoveAll<ISprintOptimizerNotifier>();
         services.RemoveAll<IKnowledgeIngestNotifier>();
-        services.AddSingleton<IClassificationNotifier, BusClassificationNotifier>();
-        services.AddSingleton<IAiBatchNotifier, BusAiBatchNotifier>();
-        services.AddSingleton<ISprintOptimizerNotifier, BusSprintOptimizerNotifier>();
-        services.AddSingleton<IKnowledgeIngestNotifier, BusKnowledgeIngestNotifier>();
+        // Scoped: MassTransit IPublishEndpoint is scoped.
+        services.AddScoped<IClassificationNotifier, BusClassificationNotifier>();
+        services.AddScoped<IAiBatchNotifier, BusAiBatchNotifier>();
+        services.AddScoped<ISprintOptimizerNotifier, BusSprintOptimizerNotifier>();
+        services.AddScoped<IKnowledgeIngestNotifier, BusKnowledgeIngestNotifier>();
         return services;
     }
 }

@@ -3,7 +3,8 @@
 Orchestrates local development for Task Manager:
 
 - PostgreSQL with **pgvector** (`pgvector/pgvector:pg16`)
-- **WebApi** on ports 5000 (HTTP) / 5001 (HTTPS)
+- **YARP gateway** on **http://localhost:5000** / **https://localhost:5001** (WebApp `Api:Url` must match; Blazor WASM cannot use Aspire env injection). Requires Aspire **≥ 13.1.1** so `WithHostHttpsPort` sticks (13.1.0 randomized HTTPS).
+- Microservices (todo / aijobs / knowledge / notifications / webapi voice / aiworker) behind the gateway
 - **WebApp** (Blazor WASM) on port 5002 (HTTPS)
 - Optional **pgAdmin** on host port 5050
 - Local **Whisper / Speaches** STT sidecar (`ghcr.io/speaches-ai/speaches:latest-cpu`) for hold-to-talk voice commands

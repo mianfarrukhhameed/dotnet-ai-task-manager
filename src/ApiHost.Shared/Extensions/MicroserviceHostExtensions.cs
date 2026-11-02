@@ -130,10 +130,11 @@ public static class MicroserviceHostExtensions
             services.RemoveAll<IAiBatchNotifier>();
             services.RemoveAll<ISprintOptimizerNotifier>();
             services.RemoveAll<IKnowledgeIngestNotifier>();
-            services.AddSingleton<IClassificationNotifier, BusClassificationNotifier>();
-            services.AddSingleton<IAiBatchNotifier, BusAiBatchNotifier>();
-            services.AddSingleton<ISprintOptimizerNotifier, BusSprintOptimizerNotifier>();
-            services.AddSingleton<IKnowledgeIngestNotifier, BusKnowledgeIngestNotifier>();
+            // Scoped: MassTransit IPublishEndpoint is scoped; singleton notifiers fail DI validation in Development.
+            services.AddScoped<IClassificationNotifier, BusClassificationNotifier>();
+            services.AddScoped<IAiBatchNotifier, BusAiBatchNotifier>();
+            services.AddScoped<ISprintOptimizerNotifier, BusSprintOptimizerNotifier>();
+            services.AddScoped<IKnowledgeIngestNotifier, BusKnowledgeIngestNotifier>();
         }
 
         services.AddAiRateLimiting(configuration);
@@ -171,6 +172,22 @@ public static class MicroserviceHostExtensions
         services.AddScoped<ToolProposalPipeline>();
         services.AddSingleton<TodoManagementPlugin>();
         services.AddHttpClient(nameof(SemanticKernelEmbeddingService));
+
+        // Shared MediatR registers TranscribeAudioCommandHandler; microservices need this for DI validation.
+        // Warmup hosted service stays WebApi-only (voice hub).
+        services.AddHttpClient("speech-to-text", (sp, client) =>
+        {
+            var aiConfig = sp.GetRequiredService<AiConfiguration>();
+            var timeoutSeconds = Math.Clamp(
+                aiConfig.SpeechToText.WarmupTimeoutSeconds > 0
+                    ? aiConfig.SpeechToText.WarmupTimeoutSeconds
+                    : Math.Max(aiConfig.SpeechToText.TimeoutSeconds, 600),
+                60,
+                1800);
+            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+        });
+        services.TryAddSingleton<OpenAiCompatibleSpeechToTextService>();
+        services.TryAddSingleton<ISpeechToTextService>(sp => sp.GetRequiredService<OpenAiCompatibleSpeechToTextService>());
 
         var embeddingProvider = configuration["Ai:Embedding:Provider"] ?? "Onnx";
         if (string.Equals(embeddingProvider, "onnx", StringComparison.OrdinalIgnoreCase))
@@ -269,8 +286,9 @@ public static class MicroserviceHostExtensions
             ? "default"
             : masterConfig.AppConfig.DefaultCorsPolicyName;
 
-        app.UseAuthentication();
+        // CORS before auth so preflight and error responses still get ACAO headers.
         app.UseCors(corsName);
+        app.UseAuthentication();
         app.Use(async (context, next) =>
         {
             var userIdentity = context.User.Identities.FirstOrDefault();

@@ -1,9 +1,26 @@
 # AI Features — Implementation Details
 
 Per-feature notes for AI **functionality and implementation** in this codebase (APIs, flows, gates, primary code).  
-Project overview, stack, providers, OTel, and eval posture: root [`README.md`](../README.md).
+Project overview, stack, providers, OTel, and eval posture: root [`README.md`](../README.md).  
+Hosts / YARP map: [`SOLUTION_OVERVIEW.md`](../SOLUTION_OVERVIEW.md). Migration: [`architecture/MIGRATION_PLAN.md`](architecture/MIGRATION_PLAN.md).
 
 Shared posture: **feature flags, JWT + access guards, sanitize inputs, validate outputs, rate-limit hot paths, prefer refuse/filter over trusting the model.**
+
+## Hosting (edge)
+
+Public clients (WebApp, MCP) call the **YARP gateway** (`https://localhost:5001`). Controllers still live in thin hosts; pipelines/handlers remain in **AiLayer** / **ServiceLayer**.
+
+| Feature surface | Typical host | Notes |
+|-----------------|--------------|-------|
+| Todo Ask, summarize, classify HTTP, tools, semantic search | **TodoService** | `/api/ai/**` (after more-specific routes) |
+| Knowledge Lab HTTP + ingest | **KnowledgeService** | `/api/ai/knowledge/**` |
+| AI batch + sprint optimizer HTTP | **AiJobsService** | `/api/ai/batch/**`, `/api/ai/agent/sprint-optimizer/**` |
+| Classify / embed side effects | **AiWorker** | MassTransit `ClassifyTodo` / `EmbedTodo` (outbox from Todo) |
+| Progress hubs (classify, batch, sprint, knowledge) | **NotificationService** | `/hubs/...` |
+| Voice STT hub + HTTP transcribe | **WebApi** (residual) | `/hubs/voice-transcribe`, voice options/transcribe routes |
+| Optional sprint-approve saga | **AiJobsService** | Flag `Ai:Features:EnableSprintApproveSaga` |
+
+Flags: `Ai:Features` in each AI host’s `appsettings.json` (keep in sync for demos).
 
 ---
 
@@ -34,7 +51,7 @@ Client → AiController → MediatR handler
 
 | Layer | Responsibility |
 |-------|----------------|
-| WebApi | Auth, rate limit, ProblemDetails |
+| TodoService (via YARP) | Auth, rate limit, ProblemDetails |
 | ServiceLayer | Access control, routing, filters, persistence |
 | AiLayer | Embed/search pipeline, generation, I/O validation |
 | DataLayer | pgvector + lexical search |
@@ -80,12 +97,12 @@ Generation (`RAGPipeline`) does **not** retrieve — callers pass already-filter
 ## 2. Knowledge Lab (advanced / document RAG)
 
 **What:** Upload owner-scoped documents → chunk + embed → natural-language Ask over the document corpus (optional unified Ask with todos). Rich RAG **trace** for demos and debugging.  
-**API** (`KnowledgeController`, `[Authorize]`):  
+**API** (`KnowledgeController` on **KnowledgeService**, `[Authorize]`):  
 - `POST /api/ai/knowledge/documents` — multipart upload (`.txt` / `.md`; `.pdf` when enabled)  
 - `GET /api/ai/knowledge/documents`, `GET .../documents/{id}`, `GET .../documents/{id}/chunks`, `DELETE .../documents/{id}`  
 - `GET /api/ai/knowledge/ingest/{jobId}` — poll ingest job  
 - `POST /api/ai/knowledge/query` — Ask (+ optional `DocumentExternalId`, `IncludeTodos`)  
-**SignalR:** `KnowledgeIngestHub` (`/hubs/knowledge-ingest`) — `IngestJobUpdated` for UI progress (owner-scoped group).  
+**SignalR:** `KnowledgeIngestHub` (`/hubs/knowledge-ingest` → **NotificationService**) — `IngestJobUpdated` for UI progress (owner-scoped group).  
 **Flag:** `Ai:Features:EnableKnowledgeRag` (also requires `EnableEmbeddings`)  
 **Rate limit:** `ai-knowledge-rag` on upload + query  
 **Knobs:** `Ai:Features:KnowledgeRag` (chunk size/overlap, retrieval limit, MinSimilarity, hybrid/RRF, query rewrite, agentic second retrieve, PDF ingest, re-ingest)
@@ -219,10 +236,12 @@ Treat priority as a **suggestion with deterministic guardrails**, not an auto-wr
 ### Request flow
 
 ```
-Create todo → ClassificationQueue → ClassificationPipeline
-POST classify → same processor (sync retry)
+Create todo → outbox TodoCreated/Updated → RabbitMQ
+  → AiWorker ClassifyTodoConsumer → ClassificationPipeline
+POST classify (TodoService) → same processor (sync retry)
 GET classify → metadata only
 POST apply-priority → completed suggestion → todo.Priority (user confirm)
+  → NotificationService /hubs/classification for progress
 ```
 
 | Decision | Why |
@@ -230,8 +249,8 @@ POST apply-priority → completed suggestion → todo.Priority (user confirm)
 | Suggest ≠ apply | Human confirm before mutating priority |
 | `ClassificationGuardrails` after LLM | Keyword/due-date overrides beat model quirks |
 | Strict JSON validate (no silent defaults) | Bad schema fails loudly |
-| Background queue + parallelism cap | Create path stays fast; LLM load bounded |
-| SignalR classification hub | UI progress without spinning the LLM |
+| Bus consumer (AiWorker) + outbox | Create path stays fast; durable side effect |
+| SignalR classification hub (NotificationService) | UI progress without spinning the LLM |
 
 ### Safety & controls
 
@@ -248,7 +267,8 @@ POST apply-priority → completed suggestion → todo.Priority (user confirm)
 ### Primary code
 
 - `ClassifyTodoTaskCommandHandler`, `ApplyAiPriorityCommandHandler`, `ClassificationProcessor`
-- `ClassificationPipeline`, `ClassificationGuardrails`, `ClassificationBackgroundService`
+- `ClassificationPipeline`, `ClassificationGuardrails`
+- `ClassifyTodoConsumer` (**AiWorker**)
 
 ---
 
@@ -265,15 +285,16 @@ Keep vectors in the **same Postgres/tenant story** as todos; async so writes sta
 ### Request flow
 
 ```
-Create/Update todo → EmbeddingQueue → EmbeddingProcessor
+Create/Update todo → outbox → RabbitMQ
+  → AiWorker EmbedTodoConsumer → EmbeddingProcessor
   → IEmbeddingService → PgVectorEmbeddingStore
-Startup: BackfillMissingAsync for current model
+Startup / batch: BackfillMissingAsync for current model (write DB)
 ```
 
 | Decision | Why |
 |----------|-----|
 | Default Onnx local BGE | No embedding SaaS required for demo/prod-lite |
-| Async queue + backfill | Create path not blocked; heals gaps after enable |
+| Bus consumer + outbox + backfill | Create path not blocked; heals gaps after enable |
 | Passage vs query input kinds | Asymmetric instruction for search quality |
 | Store model name with vector | Avoid mixing incompatible dims/models |
 
@@ -288,7 +309,7 @@ No public embed API. Text from DB only. Vectors not returned to clients. OTel on
 
 ### Primary code
 
-- `EmbeddingProcessor`, `EmbeddingBackgroundService`, `EmbeddingQueue`
+- `EmbeddingProcessor`, `EmbedTodoConsumer` (**AiWorker**)
 - `OnnxBgeEmbeddingService` / `SemanticKernelEmbeddingService`, `PgVectorEmbeddingStore`
 
 ---
@@ -396,8 +417,9 @@ execute → ToolExecutor
 - `POST .../{jobExternalId}/cancel`  
 - `POST .../{jobExternalId}/approve` — persist sprint from proposal (optional edited task id list)  
 - `POST .../{jobExternalId}/reject` — discard proposal  
-**SignalR:** `SprintOptimizerHub` (`/hubs/sprint-optimizer`) — `SprintOptimizerUpdated`  
-**Flag:** `Ai:Features:EnableAgents` (start)  
+**Host:** **AiJobsService** (YARP `/api/ai/agent/sprint-optimizer/**`).  
+**SignalR:** `SprintOptimizerHub` (`/hubs/sprint-optimizer` → **NotificationService**) — `SprintOptimizerUpdated`  
+**Flag:** `Ai:Features:EnableAgents` (start); optional `EnableSprintApproveSaga` for approve choreography  
 **Rate limit:** `ai-agents` on **start** only  
 **Budgets:** `Ai:Agents` — `MaxToolInvocationsPerJob`, `MaxPlannerRecoveryPasses`, `JobTimeoutSeconds`, `StuckAfterSeconds` (optional `ChatModel` override for agents only)
 
@@ -408,12 +430,14 @@ Multi-step planning with **tool budgets, real GUID tools, durable job state, and
 ### Request flow
 
 ```
-POST optimize → queue job (one active / user)
+POST optimize (AiJobs) → queue job (one active / user)
   → SprintOptimizerAgent + SprintPlanningTools (owner-scoped)
   → propose_sprint_plan (reject unknown ids)  [Planner does NOT create_sprint]
   → status AwaitingApproval + ProposalJson
-  → SignalR + GET poll; cancel supported
-  → user POST approve (optional SelectedTaskExternalIds) → create sprint
+  → SignalR (NotificationService) + GET poll; cancel supported
+  → user POST approve (optional SelectedTaskExternalIds)
+       → sync create sprint  OR  EnableSprintApproveSaga → MassTransit saga
+          → Todo CreateSprintFromProposal → finalize + notify
      or POST reject → clear proposal
 ```
 
@@ -426,6 +450,7 @@ POST optimize → queue job (one active / user)
 | Heuristic fallback | User still gets a reviewable plan when MAF fails |
 | Stop at `AwaitingApproval` | Propose ≠ persist — same product posture as tools |
 | Approve may re-resolve / edit selected ids | User can trim the proposal; unknown ids dropped; telemetry `proposal_edited` |
+| Optional MassTransit saga on approve | Demo cross-service choreography with timeout / notify |
 
 ### Safety & controls
 
@@ -445,15 +470,16 @@ POST optimize → queue job (one active / user)
 - `OptimizeSprintCommandHandler`, `SprintOptimizerAgent`, `SprintOptimizerWorkflowHost`, `SprintPlanningTools`
 - `SprintOptimizerBackgroundService`, `SprintOptimizerPersistService`
 - `ApproveSprintOptimizerProposalCommandHandler`, `RejectSprintOptimizerProposalCommandHandler`
+- `SprintApproveStateMachine` / `SprintApproveFinalizeService` (when saga flag on)
 - `SprintOptimizerHub` / notifier, `SprintOptimizerJobMapper`
 ---
 
 ## 9. MCP
 
-**What:** Standalone stdio MCP server for Claude Desktop; HTTP client to WebApi as the Auth0 user (Device Code + refresh). Tools/resources over the public API — **no direct DB**.  
-**API:** none on WebApi; MCP tools call normal WebApi routes.  
-**Flag:** `Ai:Features:EnableMcp` exists in config but is **not enforced** in McpServer/WebApi today.  
-**Rate limit:** inherits WebApi policies on called endpoints.
+**What:** Standalone stdio MCP server for Claude Desktop; HTTP client to the **YARP gateway** as the Auth0 user (Device Code + refresh). Tools/resources over the public API — **no direct DB**.  
+**API:** none dedicated; MCP tools call normal gateway routes (`/api/todos`, …).  
+**Flag:** `Ai:Features:EnableMcp` exists in config but is **not enforced** in McpServer/hosts today.  
+**Rate limit:** inherits host policies on called endpoints.
 
 ### Design goal
 
@@ -464,24 +490,24 @@ Give Claude the same **user-scoped HTTP surface** as the app, with real OAuth �
 ```
 Claude ↔ McpServer (stdio)
   → Auth0 Device Code / token cache
-  → TaskManagerApiClient (Bearer) → WebApi → same authz as UI
+  → TaskManagerApiClient (Bearer) → gateway → TodoService (etc.) → same authz as UI
 ```
 
 | Decision | Why |
 |----------|-----|
-| HTTP to WebApi only | Reuses JWT, policies, AI gates |
+| HTTP to gateway only | Reuses JWT, policies, AI gates; same edge as WebApp |
 | Device Code + refresh | Safer desktop auth UX than pasted JWTs |
 | Token file mode 600 | Reduce local token theft risk |
 | Stdio: protocol on stdout, logs on stderr | MCP transport correctness |
 
 ### Safety & controls
 
-Auth0 Native app + audience. Authz is whatever WebApi returns for that user. Tool args validated at the API. Docs: `docs/mcp/README.md`.
+Auth0 Native app + audience. Authz is whatever the API hosts return for that user. Tool args validated at the API. Docs: `docs/mcp/README.md`.
 
 ### What this is *not* claiming
 
 - `EnableMcp` is a live kill switch (config-only today).
-- Extra MCP-specific rate policy beyond WebApi.
+- Extra MCP-specific rate policy beyond the called hosts.
 
 ### Primary code
 
@@ -492,6 +518,7 @@ Auth0 Native app + audience. Authz is whatever WebApi returns for that user. Too
 ## 10. AI batch jobs
 
 **What:** Durable multi-step job over many todos: **embedding → classify → summarize** (configurable), with pause/continue/cancel, heartbeat/stuck detection, SignalR progress.  
+**Host:** **AiJobsService** (YARP `/api/ai/batch/**`). Progress hub on **NotificationService**.  
 **API:**  
 - `POST /api/ai/batch`  
 - `GET /api/ai/batch/active`, `GET /api/ai/batch/{id}`  
@@ -541,6 +568,7 @@ POST batch → StartAiBatchJobCommandHandler
 ## 11. Voice transcription (hold-to-talk commands)
 
 **What:** One page-level hold-to-talk mic (Todo page overlay) → live Web Speech **finals** (or local Whisper captions) → skip Speaches when the sentence is already complete → else Whisper → `ProposeAiTools` → auto-apply reads/UI tools, confirm writes. With the **edit dialog open**, spoken title/description/due date/priority **fill the form** (no confirm, no persist until Save).  
+**Host:** residual **WebApi** (YARP catch-all) for voice hub + related routes.  
 **API:** `GET /api/ai/voice-options`, `POST /api/ai/transcribe` (`[Authorize]` + multipart audio) and SignalR `VoiceTranscribeHub` (`/hubs/voice-transcribe`) for chunked audio while holding.  
 **Flag:** `Ai:Features:EnableVoiceTranscription`  
 **Local live captions:** `Ai:SpeechToText:EnableLocalLiveCaptions` (default **false**). When true, **skip browser Web Speech**. The mic sends PCM; the hub runs one-in-flight Whisper on a **5s tail window** for “Heard (partial)”. Release reuses that result when the last partial covered the full clip; otherwise Speaches transcribes the full PCM once.  
@@ -606,6 +634,7 @@ Hold Dictate (VoiceTodoCommandComponent)
 | Knowledge Lab | `EnableKnowledgeRag` + embeddings | `ai-knowledge-rag` (upload + query) |
 | Tools | `EnableFunctionCalling` | `ai-function-calling` |
 | Agents (MAF) | `EnableAgents` | `ai-agents` (start) |
+| Sprint-approve saga | `EnableSprintApproveSaga` | — (approve path) |
 | Voice STT | `EnableVoiceTranscription` | `ai-transcribe` |
 | Voice local captions | `Ai:SpeechToText:EnableLocalLiveCaptions` | (hub; Speaches) |
 | MCP | `EnableMcp` (config only) | via called APIs |
