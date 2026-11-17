@@ -18,11 +18,16 @@ namespace Fistix.TaskManager.WebApi.Extensions
     {
       if (environment.IsDevelopment())
       {
+        // OpenAPI JSON for API hosts is proxied by YARP under /openapi/{service}/… → /swagger/…
+        // Use https://localhost:5001/swagger (gateway), not the residual WebApi port alone.
+        var version = masterConfig.Swagger?.ApiVersion ?? "V1";
         app.UseSwagger();
-
         app.UseSwaggerUI(x =>
         {
-          x.SwaggerEndpoint($"/swagger/{masterConfig.Swagger.ApiVersion}/swagger.json", $"{masterConfig.Swagger.Title} {masterConfig.Swagger.ApiVersion}");
+          x.SwaggerEndpoint($"/openapi/todo/{version}/swagger.json", "Todo / AI");
+          x.SwaggerEndpoint($"/openapi/knowledge/{version}/swagger.json", "Knowledge Lab");
+          x.SwaggerEndpoint($"/openapi/aijobs/{version}/swagger.json", "AI Jobs");
+          x.DocumentTitle = "Task Manager API";
         });
       }
 

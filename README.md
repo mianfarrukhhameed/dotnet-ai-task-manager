@@ -37,7 +37,7 @@ src/
 ├── AiJobsService/          # /api/ai/batch/**, /api/ai/agent/sprint-optimizer/** (+ saga)
 ├── NotificationService/    # Progress SignalR hubs (/hubs/classification, ai-batch, …)
 ├── AiWorker/               # MassTransit ClassifyTodo / EmbedTodo consumers
-├── WebApi/                 # Residual: voice hub + Swagger catch-all behind gateway
+├── WebApi/                 # Residual: voice hub + gateway Swagger UI shell (no domain controllers)
 ├── ApiHost.Shared/         # Shared host DI / JWT / CORS / pipeline
 ├── Contracts/              # MassTransit message contracts
 ├── AiLayer/ · ServiceLayer/ · DataLayer/ · Core/ · ViewModel/
@@ -98,12 +98,22 @@ dotnet run --project src/AppHost/AppHost.csproj
 | App | URL |
 |-----|-----|
 | WebApp | https://localhost:5002 |
-| API gateway (Swagger via residual WebApi) | https://localhost:5001/swagger |
+| API gateway | https://localhost:5001 |
+| Swagger (aggregated OpenAPI) | https://localhost:5001/swagger |
 | Gateway HTTP | http://localhost:5000 |
 | Aspire dashboard | opened by AppHost |
 | pgAdmin (optional) | http://localhost:5050 |
 
 WebApp `wwwroot` `Api:Url` must stay `https://localhost:5001/` (WASM cannot read Aspire-injected env). Aspire pins gateway HTTPS with `WithHostHttpsPort(5001)`.
+
+### Swagger / OpenAPI
+
+OpenAPI is **generated on each API host** (Todo / Knowledge / AiJobs). The **gateway** exposes one Swagger UI that loads those specs via `/openapi/todo|knowledge|aijobs/…`.
+
+- Aspire dashboard → **gateway** → **Swagger** (or open https://localhost:5001/swagger).
+- **webapi** resource link is **Voice hub** (`:5142`) — voice STT only; do not use it for API docs.
+
+Details: [`docs/aspire/README.md`](docs/aspire/README.md#swagger--openapi-gateway-aggregate).
 
 Without Aspire: `docker compose up -d` (Postgres on **5433**), set `ConnectionStrings:MainDb`, run hosts + a reverse proxy yourself — prefer AppHost for day-to-day work. More: [`docs/aspire/README.md`](docs/aspire/README.md).
 
