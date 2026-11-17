@@ -130,11 +130,11 @@ Implementation notes: [`docs/AI_FEATURES.md`](docs/AI_FEATURES.md).
 
 ## AI observability (OpenTelemetry)
 
-AI features emit GenAI-oriented traces and metrics on ActivitySource/Meter `TaskManager.Ai` (classify, summarize, RAG, tools, embeddings, sprint optimizer).
+AI features emit GenAI-oriented traces and metrics on ActivitySource/Meter `TaskManager.Ai` (classify, summarize, RAG, tools, embeddings, sprint optimizer). MassTransit publish/consume spans are registered in ServiceDefaults (`ActivitySource`/`Meter` `MassTransit`), so under Aspire a create-todo HTTP request and AiWorker `ClassifyTodo` / `EmbedTodo` work share the same `trace_id` (W3C `traceparent` on RabbitMQ).
 
 | Environment | Where to look |
 |---|---|
-| **Development (Aspire)** | Aspire Dashboard → Traces / Metrics. Filter for `ai.operation/`*, `ai.llm/*`, `ai.tool/*`. |
+| **Development (Aspire)** | Aspire Dashboard → Traces / Metrics. Filter for MassTransit, `ai.operation/`*, `ai.llm/*`, `ai.tool/*`. Open the TodoService HTTP span and confirm child/linked MassTransit + AiWorker spans share one `trace_id`; related logs carry the same id. |
 | **Production** | Point `OTEL_EXPORTER_OTLP_ENDPOINT` at Grafana Alloy/Tempo (or any OTLP collector). Same instrumentation; no Aspire Dashboard required. |
 
 Config under `Ai:Observability`:

@@ -54,6 +54,8 @@ public static class Extensions
 
         // TaskManager.Ai must match Fistix.TaskManager.AiLayer.Observability.AiTelemetryNames.ActivitySourceName / MeterName
         const string aiTelemetryName = "TaskManager.Ai";
+        // MassTransit v8 native ActivitySource/Meter (W3C traceparent on RabbitMQ); no OpenTelemetry.Instrumentation.MassTransit package
+        const string massTransitTelemetryName = "MassTransit";
 
         builder.Services.AddOpenTelemetry()
             .WithMetrics(metrics =>
@@ -61,12 +63,14 @@ public static class Extensions
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
-                    .AddMeter(aiTelemetryName);
+                    .AddMeter(aiTelemetryName)
+                    .AddMeter(massTransitTelemetryName);
             })
             .WithTracing(tracing =>
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
                     .AddSource(aiTelemetryName)
+                    .AddSource(massTransitTelemetryName)
                     .AddAspNetCoreInstrumentation(tracing =>
                         // Exclude health check requests from tracing
                         tracing.Filter = context =>
