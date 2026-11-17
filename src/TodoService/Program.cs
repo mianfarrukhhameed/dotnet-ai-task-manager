@@ -16,11 +16,16 @@ builder.Services.AddMicroserviceCommon(
     enableBusOutbox: true,
     enableBusNotifiers: true,
     configureBus: x => x.AddConsumer<CreateSprintFromProposalConsumer>());
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddDevelopmentSwagger(masterConfig, title: "Todo / AI");
+}
 
 var app = builder.Build();
 app.MapDefaultEndpoints();
 if (app.Environment.IsDevelopment()) Startup.ApplyMigrations(app.Services);
 app.UseHttpsRedirection();
+app.UseDevelopmentSwagger(masterConfig);
 app.UseMicroservicePipeline(masterConfig);
 app.MapControllers();
 await app.RunAsync();

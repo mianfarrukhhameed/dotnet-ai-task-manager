@@ -24,7 +24,7 @@ Migration phases: [`docs/architecture/MIGRATION_PLAN.md`](docs/architecture/MIGR
 | `SOLUTION_OVERVIEW.md` | AI agents | Layers, hosts, flow, conventions, where to put code |
 | `docs/AI_FEATURES.md` | Engineers / agents | Each AI feature: API, flags, flows, gates, primary types |
 | `docs/architecture/MIGRATION_PLAN.md` | Engineers / agents | Phase 1–5 decisions and status |
-| `docs/aspire/README.md` | Local run | AppHost ports, Whisper, gateway notes |
+| `docs/aspire/README.md` | Local run | AppHost ports, Whisper, gateway, Swagger/OpenAPI aggregate |
 | `.cursor/rules/*` | Cursor | Always-on stack / conventions / never-do |
 
 ## Project structure
@@ -38,7 +38,7 @@ src/
 ├── AiJobsService/          # AI batch + sprint optimizer + SprintApprove saga
 ├── NotificationService/    # Progress SignalR hubs (classify, batch, sprint, knowledge)
 ├── AiWorker/               # ClassifyTodo / EmbedTodo MassTransit consumers
-├── WebApi/                 # Residual: voice STT hub + Swagger; catch-all behind YARP
+├── WebApi/                 # Residual: voice STT hub + Swagger UI shell; catch-all behind YARP
 ├── ApiHost.Shared/         # Shared host wiring (JWT, CORS, pipeline, MediatR host opts)
 ├── Contracts/              # Bus message contracts (Todo*, SprintApprove*, …)
 ├── AiLayer/                # Pipelines: summarize, classify, embed, RAG, tools, eval
@@ -90,7 +90,15 @@ Typical path: **WebApp JWT → YARP → host controller → MediatR → ServiceL
 | `/api/ai/knowledge/{**}` | KnowledgeService |
 | `/api/ai/batch/{**}`, `/api/ai/agent/sprint-optimizer/{**}` | AiJobsService |
 | `/api/todos/{**}`, `/api/sprints/{**}`, `/api/ai/{**}` | TodoService |
-| Catch-all (voice hub, Swagger, …) | WebApi |
+| `/openapi/todo|knowledge|aijobs/{**}` | Todo / Knowledge / AiJobs (`/swagger` on each host) |
+| Catch-all (voice hub, Swagger UI shell, …) | WebApi |
+
+### OpenAPI / Swagger
+
+- **Generate** on hosts that own controllers: TodoService, KnowledgeService, AiJobsService (`SwaggerHostExtensions` in `ApiHost.Shared`, Development only).
+- **Browse** at gateway: https://localhost:5001/swagger (WebApi UI shell loads `/openapi/todo|knowledge|aijobs/…` proxied by YARP).
+- Aspire dashboard: **gateway** → **Gateway** + **Swagger**; **webapi** → **Voice hub** (not Swagger).
+- Full local-run notes: [`docs/aspire/README.md`](docs/aspire/README.md#swagger--openapi-gateway-aggregate).
 
 ### Data & messaging (Phases 1–2)
 
@@ -174,6 +182,7 @@ Controllers stay thin: validate `ModelState` → `_mediator.Send(...)` → map d
 
 - Prefer `dotnet run --project src/AppHost/AppHost.csproj`.
 - Gateway: http://localhost:5000 · https://localhost:5001 (Aspire ≥ 13.1.1 + `WithHostHttpsPort`).
+- Swagger: https://localhost:5001/swagger (dashboard link **Swagger** on gateway).
 - WebApp: https://localhost:5002.
 - Details: `README.md` quick start; `docs/aspire/README.md`.
 
@@ -215,10 +224,11 @@ Flags live under `Ai:Features` in host appsettings (e.g. TodoService / Knowledge
 2. Handler in **ServiceLayer**; reuse access guards.
 3. If AI: pipeline/helpers in **AiLayer**; wire flag + rate limit; sanitize/validate.
 4. Thin controller on the **correct host**; ensure AppHost YARP route covers the path (more specific routes before `/api/ai/{**}`).
-5. WebApp: extend `*DataService` / `*StateService` + MudBlazor UI; reuse ViewModel types; call gateway only.
-6. If async side effects: publish contract + consumer (prefer AiWorker / existing bus patterns) + outbox when mutating with publish.
-7. Tests under `src/Tests/*`.
-8. If AI behavior changes, update `docs/AI_FEATURES.md`.
+5. If a **new HTTP API host**: `AddDevelopmentSwagger` / `UseDevelopmentSwagger`, add `/openapi/{name}/…` YARP transform + WebApi `SwaggerEndpoint`, update `docs/aspire/README.md`.
+6. WebApp: extend `*DataService` / `*StateService` + MudBlazor UI; reuse ViewModel types; call gateway only.
+7. If async side effects: publish contract + consumer (prefer AiWorker / existing bus patterns) + outbox when mutating with publish.
+8. Tests under `src/Tests/*`.
+9. If AI behavior changes, update `docs/AI_FEATURES.md`.
 
 ---
 

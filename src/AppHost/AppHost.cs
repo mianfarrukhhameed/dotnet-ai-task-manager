@@ -1,4 +1,5 @@
 using Aspire.Hosting;
+using Aspire.Hosting.Yarp.Transforms;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -22,7 +23,7 @@ var whisper = builder
     .WithEnvironment("WHISPER__MODEL", "Systran/faster-whisper-small")
     .WithVolume("taskmanager-aspire-whisper-cache", "/home/ubuntu/.cache/huggingface/hub");
 
-// Legacy shell: voice STT hub + optional residual routes.
+// Legacy shell: voice STT hub + optional residual routes (not the public Swagger entry).
 var webapi = builder
     .AddProject<Projects.WebApi>("webapi")
     .WithReference(mainDb)
@@ -30,7 +31,9 @@ var webapi = builder
     .WaitFor(mainDb)
     .WaitFor(rabbitmq)
     .WaitFor(whisper)
-    .WithEnvironment("Ai__SpeechToText__Endpoint", whisper.GetEndpoint("http"));
+    .WithEnvironment("Ai__SpeechToText__Endpoint", whisper.GetEndpoint("http"))
+    .WithUrlForEndpoint("https", url => url.DisplayText = "Voice hub")
+    .WithUrlForEndpoint("http", url => url.DisplayLocation = UrlDisplayLocation.DetailsOnly);
 
 builder
     .AddProject<Projects.AiWorker>("aiworker")
@@ -88,6 +91,16 @@ var gateway = builder
         yarp.AddRoute("/hubs/ai-batch/{**catch-all}", notifications);
         yarp.AddRoute("/hubs/sprint-optimizer/{**catch-all}", notifications);
         yarp.AddRoute("/hubs/knowledge-ingest/{**catch-all}", notifications);
+        // OpenAPI JSON for Swagger UI on residual WebApi (UI at /swagger via catch-all).
+        yarp.AddRoute("/openapi/todo/{**catch-all}", todo)
+            .WithTransformPathRemovePrefix("/openapi/todo")
+            .WithTransformPathPrefix("/swagger");
+        yarp.AddRoute("/openapi/knowledge/{**catch-all}", knowledge)
+            .WithTransformPathRemovePrefix("/openapi/knowledge")
+            .WithTransformPathPrefix("/swagger");
+        yarp.AddRoute("/openapi/aijobs/{**catch-all}", aijobs)
+            .WithTransformPathRemovePrefix("/openapi/aijobs")
+            .WithTransformPathPrefix("/swagger");
         yarp.AddRoute("/api/ai/knowledge/{**catch-all}", knowledge);
         yarp.AddRoute("/api/ai/batch/{**catch-all}", aijobs);
         yarp.AddRoute("/api/ai/agent/sprint-optimizer/{**catch-all}", aijobs);
@@ -100,7 +113,11 @@ var gateway = builder
     .WaitFor(notifications)
     .WaitFor(knowledge)
     .WaitFor(aijobs)
-    .WaitFor(todo);
+    .WaitFor(todo)
+    // Dashboard: root + aggregated Swagger (OpenAPI from Todo/Knowledge/AiJobs via /openapi/…).
+    .WithUrlForEndpoint("https", url => url.DisplayText = "Gateway")
+    .WithUrlForEndpoint("https", _ => new() { Url = "/swagger", DisplayText = "Swagger" })
+    .WithUrlForEndpoint("http", url => url.DisplayLocation = UrlDisplayLocation.DetailsOnly);
 
 builder.Eventing.Subscribe<BeforeStartEvent>((_, _) =>
 {
