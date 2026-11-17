@@ -17,9 +17,35 @@ dotnet run --project src/AppHost/AppHost.csproj
 
 The Aspire dashboard opens automatically. WebApi receives `ConnectionStrings__MainDb` from the `MainDb` database resource and `Ai__SpeechToText__Endpoint` from the Whisper container.
 
+## Dashboard URLs (resource view)
+
+| Resource | Link label | URL | Notes |
+|----------|------------|-----|--------|
+| **gateway** | Gateway | https://localhost:5001 | Public API edge |
+| **gateway** | Swagger | https://localhost:5001/swagger | Aggregated OpenAPI UI — **use this** |
+| **webapi** | Voice hub | https://localhost:5142 | Residual STT hub only — **not** API docs |
+| **webapp** | (HTTPS) | https://localhost:5002 | Blazor UI |
+
+HTTP gateway (`:5000`) and WebApi HTTP are details-only so the grid stays focused on HTTPS + Swagger.
+
+## Swagger / OpenAPI (gateway aggregate)
+
+Approach: **generate OpenAPI per API host**; **browse via one Swagger UI on the gateway**.
+
+1. **TodoService**, **KnowledgeService**, **AiJobsService** each expose `/swagger/{ApiVersion}/swagger.json` in Development (`ApiHost.Shared` → `AddDevelopmentSwagger` / `UseDevelopmentSwagger`).
+2. YARP proxies specs:
+   - `/openapi/todo/{**}` → Todo `/swagger/{**}`
+   - `/openapi/knowledge/{**}` → Knowledge `/swagger/{**}`
+   - `/openapi/aijobs/{**}` → AiJobs `/swagger/{**}`
+3. Residual **WebApi** hosts Swagger UI only (catch-all). UI loads the three docs above. Try-it-out hits `:5001` paths (same as WebApp/MCP).
+
+Do **not** use `https://localhost:5142/swagger` for API exploration — that port has no controllers after the microservice split, and `/openapi/…` routes exist only on the gateway.
+
+Shared helper: `src/ApiHost.Shared/Extensions/SwaggerHostExtensions.cs`. Wire new HTTP API hosts the same way and add a matching `/openapi/{name}/…` YARP route + SwaggerEndpoint on WebApi.
+
 ## Notes
 
-- Set AI keys via WebApi user-secrets or process environment (same as non-Aspire runs).
+- Set AI keys via user-secrets on an AI host (e.g. TodoService) or process environment (same as non-Aspire runs).
 - MCP Server is not started by AppHost (stdio / Claude Desktop process).
 - Prefer this over `docker compose` for day-to-day API + UI work; avoid running both Postgres stacks unless you know you need two databases.
 - First Whisper start downloads the tiny model into a named Docker volume (`taskmanager-aspire-whisper-cache`); later Aspire restarts reuse that cache and should log `already installed — skipping download`.

@@ -28,11 +28,16 @@ builder.Services.AddMicroserviceCommon(
                 r.UsePostgres();
             });
     });
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddDevelopmentSwagger(masterConfig, title: "AI Jobs");
+}
 
 var app = builder.Build();
 app.MapDefaultEndpoints();
 if (app.Environment.IsDevelopment()) Startup.ApplyMigrations(app.Services);
 app.UseHttpsRedirection();
+app.UseDevelopmentSwagger(masterConfig);
 app.UseMicroservicePipeline(masterConfig);
 app.MapControllers();
 await app.RunAsync();
