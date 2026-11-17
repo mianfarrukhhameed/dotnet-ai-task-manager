@@ -189,7 +189,9 @@ Controllers stay thin: validate `ModelState` → `_mediator.Send(...)` → map d
 
 ### Observability
 
-- ActivitySource/Meter: `TaskManager.Ai`
+- ActivitySource/Meter: `TaskManager.Ai` (GenAI spans) + `MassTransit` (publish/consume; registered in ServiceDefaults)
+- Correlated path under Aspire: HTTP (TodoService) → MassTransit outbox/publish → AiWorker consume → nested `TaskManager.Ai` (same `trace_id`)
+- Not in scope yet: Blazor WASM browser/RUM tracing, EF/Npgsql instrumentation
 - Config: `Ai:Observability` (payload preview off by default)
 - Human-oriented notes: `README.md` (AI observability / validation sections)
 
